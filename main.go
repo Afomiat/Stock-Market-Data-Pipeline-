@@ -1,0 +1,83 @@
+package main
+
+import(
+	"database/sql"
+	"log"
+	"os"
+	"net/http"
+	"github.com/gin-gonic/gin"
+	"fmt"
+	_"github.com/lib/pq"
+	"github.com/joho/godotenv"
+	"stock-market-data-pipeline/internal/handler"
+
+)
+
+var db *sql.DB
+
+
+func getEnv(key , fallback string ) string{
+	if value := os.Getenv(key); value != ""{
+		return value
+	}
+	return fallback
+}
+
+func pingFunc(c *gin.Context){
+	c.JSON(http.StatusOK, gin.H{"message":"working"})
+}
+
+func dbCheckHandler(c *gin.Context){
+	var dbName string
+
+	err := db.QueryRow("SELECT current_database()").Scan(&dbName)
+
+	if err != nil{
+		c.JSON(http.StatusInternalServerError, gin.H{"error": "database query failed" + err.Error(),})
+		return
+	}
+	c.JSON(http.StatusOK, gin.H{"database": dbName})
+}
+
+func connectDB(){
+	connStr := getEnv("DATABASE_URL", "")
+	if connStr == ""{
+		log.Fatalf("Error: DATABASE_URL not set in .env")
+	}
+	var err error
+
+	db, err = sql.Open("postgres", connStr)
+
+	if err != nil{
+		log.Fatalf("Failed to open database:%v", err)
+	}
+	err = db.Ping()
+	if err != nil{
+		log.Fatalf("Failed to ping db: %v", err)
+	}
+
+	fmt.Println("db connected!")
+
+}
+
+func main(){
+	if err := godotenv.Load(); err != nil{
+		fmt.Println("No .env file found, using system environment variables instead.")
+	}
+	connectDB()
+	defer db.Close()
+	r := gin.Default()
+
+	auth := r.Group("/auth")
+	{
+		auth.GET("/ping", pingFunc)
+		auth.GET("/health", dbCheckHandler)
+		auth.POST("/signup", handler.SignUp(db) )
+	}
+
+	port := getEnv("PORT", "8080")
+	fmt.Printf("🚀 Server running on port %s...\n", port)
+	if err := r.Run(":"+ port); err != nil{
+		log.Fatalf("failed to start server %v", err)
+	}
+}
