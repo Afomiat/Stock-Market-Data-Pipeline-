@@ -68,11 +68,16 @@ func main(){
 	defer db.Close()
 	r := gin.Default()
 
+	
+	r.GET("/ping", pingFunc)
+	r.GET("/health", dbCheckHandler)
+
 	auth := r.Group("/auth")
+
 	{
-		auth.GET("/ping", pingFunc)
-		auth.GET("/health", dbCheckHandler)
+		
 		auth.POST("/signup", handler.SignUp(db) )
+		auth.POST("/login", handler.Login(db))
 	}
 
 	port := getEnv("PORT", "8080")

@@ -34,3 +34,30 @@ func CreateUser(db *sql.DB, req model.RegisterRequest)(*model.User, error){
 
 	return &user , nil
 }
+
+func GetUserByEmail(db *sql.DB, email string) (*model.User, string, error){
+	query := `
+		SELECT 	id, full_name, email, password_hash, created_at, updated_at
+		FROM users
+		WHERE email = $1
+	`
+
+	var user model.User
+	var passwordHash string
+
+
+	err := db.QueryRow(query, email).Scan(
+		&user.ID,
+		&user.FullName,
+		&user.Email,
+		&passwordHash,
+		&user.CreatedAt,
+		&user.UpdatedAt,
+	)
+
+	if err != nil{
+		return nil, "", err
+	}
+
+	return &user, passwordHash, nil
+}
