@@ -7,9 +7,10 @@ import(
 	"net/http"
 	"github.com/gin-gonic/gin"
 	"fmt"
-	_"github.com/lib/pq"
+	_ "github.com/jackc/pgx/v5/stdlib"
 	"github.com/joho/godotenv"
 	"stock-market-data-pipeline/internal/handler"
+	"stock-market-data-pipeline/internal/middleware"
 
 )
 
@@ -46,7 +47,7 @@ func connectDB(){
 	}
 	var err error
 
-	db, err = sql.Open("postgres", connStr)
+	db, err = sql.Open("pgx", connStr)
 
 	if err != nil{
 		log.Fatalf("Failed to open database:%v", err)
@@ -78,6 +79,15 @@ func main(){
 		
 		auth.POST("/signup", handler.SignUp(db) )
 		auth.POST("/login", handler.Login(db))
+	}
+
+	protected := r.Group("/")
+	protected.Use(middleware.AuthMiddleware())
+	{
+		protected.GET("/test", func(c *gin.Context) {
+			userID := c.MustGet("user_id").(string)
+			c.JSON(http.StatusOK, gin.H{"user_id": userID})
+		})
 	}
 
 	port := getEnv("PORT", "8080")
