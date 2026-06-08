@@ -84,10 +84,10 @@ func main(){
 	protected := r.Group("/")
 	protected.Use(middleware.AuthMiddleware())
 	{
-		protected.GET("/test", func(c *gin.Context) {
-			userID := c.MustGet("user_id").(string)
-			c.JSON(http.StatusOK, gin.H{"user_id": userID})
-		})
+		protected.POST("/alerts", handler.CreateAlertHandler(db))
+		protected.GET("/alerts", handler.GetAlertsHandler(db))
+		protected.PUT("/alerts/:id", handler.UpdateAlertHandler(db))
+		protected.DELETE("/alerts/:id", handler.DeleteAlertHandler(db))
 	}
 
 	port := getEnv("PORT", "8080")
