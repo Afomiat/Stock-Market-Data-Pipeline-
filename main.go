@@ -8,7 +8,9 @@ import (
 	"os"
 	"stock-market-data-pipeline/internal/handler"
 	"stock-market-data-pipeline/internal/middleware"
+	"stock-market-data-pipeline/internal/storage"
 	"stock-market-data-pipeline/platform/alpaca"
+	
 
 	"github.com/gin-gonic/gin"
 	_ "github.com/jackc/pgx/v5/stdlib"
@@ -95,6 +97,16 @@ func main(){
 	fmt.Printf("🚀 Server running on port %s...\n", port)
 
 	go func(){
+		// time.Sleep(5 * time.Second)
+		// log.Println("🧪 [TEST] Simulating an incoming high-volume TSLA trade...")
+		
+		// // Explicitly call your storage function using your exact table variables
+		// err := storage.SaveStockPrice(db, "TSLA", 403.50, 2500)
+		// if err != nil {
+		// 	log.Printf("❌ [TEST] Simulation database write failed: %v", err)
+		// } else {
+		// 	log.Println("✨ [TEST] Success! Simulated TSLA trade locked into Neon database.")
+		// }
 		client, err := alpaca.NewAlpacaClient()
 
 		if err != nil{
@@ -114,8 +126,14 @@ func main(){
 		}
 
 		
-		client.Listen(func(ticker string, price float64) {
-			log.Printf("💹 %s: $%.2f", ticker, price)
+		client.Listen(func(ticker string, price float64, volume int64) {
+			log.Printf("💹 %s: $%.2f, %d", ticker, price, volume)
+
+			err := storage.SaveStockPrice(db, ticker, price, volume)
+
+			if err != nil {
+			log.Printf("⚠️ Database transaction skipped: %v", err)
+		}
 		})
 
 	}()

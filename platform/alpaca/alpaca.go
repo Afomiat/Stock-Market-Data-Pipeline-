@@ -23,6 +23,7 @@ type FinnhubResponse struct {
 type FinnhubTrade struct {
 	Symbol string  `json:"s"` 
 	Price  float64 `json:"p"`
+	Volume int64    `json:"v"`
 }
 
 func NewAlpacaClient() (*AlpacaClient, error) {
@@ -64,7 +65,7 @@ func (c *AlpacaClient) Subscribe(tickers []string) error {
 	return nil
 }
 
-func (c *AlpacaClient) Listen(onPrice func(ticker string, price float64)) error {
+func (c *AlpacaClient) Listen(onPrice func(ticker string, price float64, volume int64 )) error {
 	log.Println("Ingest listener active. Standing by for real-time market activity...")
 
 	for {
@@ -81,7 +82,7 @@ func (c *AlpacaClient) Listen(onPrice func(ticker string, price float64)) error 
 
 		if msg.Type == "trade" {
 			for _, trade := range msg.Data {
-				onPrice(trade.Symbol, trade.Price)
+				onPrice(trade.Symbol, trade.Price, trade.Volume)
 			}
 		}
 	}
