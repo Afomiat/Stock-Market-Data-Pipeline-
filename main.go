@@ -1,17 +1,18 @@
 package main
 
-import(
+import (
 	"database/sql"
-	"log"
-	"os"
-	"net/http"
-	"github.com/gin-gonic/gin"
 	"fmt"
-	_ "github.com/jackc/pgx/v5/stdlib"
-	"github.com/joho/godotenv"
+	"log"
+	"net/http"
+	"os"
 	"stock-market-data-pipeline/internal/handler"
 	"stock-market-data-pipeline/internal/middleware"
+	"stock-market-data-pipeline/platform/alpaca"
 
+	"github.com/gin-gonic/gin"
+	_ "github.com/jackc/pgx/v5/stdlib"
+	"github.com/joho/godotenv"
 )
 
 var db *sql.DB
@@ -92,6 +93,34 @@ func main(){
 
 	port := getEnv("PORT", "8080")
 	fmt.Printf("🚀 Server running on port %s...\n", port)
+
+	go func(){
+		client, err := alpaca.NewAlpacaClient()
+
+		if err != nil{
+			log.Printf("failed to create alpaca client: %v", err)
+			return
+		}
+
+		if err := client.Authenticate(); err != nil {
+			log.Printf("alpaca auth failed: %v", err)
+			return
+		}
+
+
+		if err := client.Subscribe([]string{"NVDA", "AAPL", "TSLA"}); err != nil {
+			log.Printf("❌ Critical error: failed to subscribe to market assets: %v", err)
+			return
+		}
+
+		
+		client.Listen(func(ticker string, price float64) {
+			log.Printf("💹 %s: $%.2f", ticker, price)
+		})
+
+	}()
+
+
 	if err := r.Run(":"+ port); err != nil{
 		log.Fatalf("failed to start server %v", err)
 	}
