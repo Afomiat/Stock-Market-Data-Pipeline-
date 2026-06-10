@@ -97,16 +97,7 @@ func main(){
 	fmt.Printf("🚀 Server running on port %s...\n", port)
 
 	go func(){
-		// time.Sleep(5 * time.Second)
-		// log.Println("🧪 [TEST] Simulating an incoming high-volume TSLA trade...")
 		
-		// // Explicitly call your storage function using your exact table variables
-		// err := storage.SaveStockPrice(db, "TSLA", 403.50, 2500)
-		// if err != nil {
-		// 	log.Printf("❌ [TEST] Simulation database write failed: %v", err)
-		// } else {
-		// 	log.Println("✨ [TEST] Success! Simulated TSLA trade locked into Neon database.")
-		// }
 		client, err := alpaca.NewAlpacaClient()
 
 		if err != nil{

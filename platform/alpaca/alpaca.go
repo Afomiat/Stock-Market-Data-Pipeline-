@@ -14,7 +14,6 @@ type AlpacaClient struct {
 	apiKey string
 }
 
-// Finnhub's response structure
 type FinnhubResponse struct {
 	Type string         `json:"type"`
 	Data []FinnhubTrade `json:"data"`
