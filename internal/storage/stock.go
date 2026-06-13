@@ -16,3 +16,26 @@ func SaveStockPrice(db *sql.DB, ticker string, price float64, volume int64) erro
     }
     return nil
 }
+
+func GetLatestPrice(db *sql.DB, ticker string) (float64, error){
+
+    var price float64
+
+    query := `
+        SELECT price
+        FROM stock_prices
+        WHERE ticker = $1
+        ORDER BY timestamp DESC
+        LIMIT 1;
+    `
+    err := db.QueryRow(query, ticker).Scan(&price)
+    if err != nil{
+        if err == sql.ErrNoRows{
+            return 0, fmt.Errorf("no historical database recors found for ticker %s", ticker)
+        }
+
+        return 0, fmt.Errorf("database query err for %s: %w", ticker, err)
+    }
+
+    return price, nil
+}

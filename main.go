@@ -10,7 +10,7 @@ import (
 	"stock-market-data-pipeline/internal/middleware"
 	"stock-market-data-pipeline/internal/storage"
 	"stock-market-data-pipeline/platform/alpaca"
-	
+	"stock-market-data-pipeline/platform/cache"
 
 	"github.com/gin-gonic/gin"
 	_ "github.com/jackc/pgx/v5/stdlib"
@@ -18,6 +18,7 @@ import (
 )
 
 var db *sql.DB
+var redisCache *cache.RedisClient
 
 
 func getEnv(key , fallback string ) string{
@@ -70,6 +71,14 @@ func main(){
 	}
 	connectDB()
 	defer db.Close()
+
+	var err error
+	redisCache, err = cache.NewRedisClient()
+	if err != nil{
+		log.Fatalf("Failed to connect to redis cache layer: %v", err)
+	}
+
+	fmt.Println("Redis cache connected successfully!")
 	r := gin.Default()
 
 	
@@ -91,6 +100,7 @@ func main(){
 		protected.GET("/alerts", handler.GetAlertsHandler(db))
 		protected.PUT("/alerts/:id", handler.UpdateAlertHandler(db))
 		protected.DELETE("/alerts/:id", handler.DeleteAlertHandler(db))
+		protected.GET("/stocks/:ticker/price", handler.GetStockPriceHandler(db, redisCache))
 	}
 
 	port := getEnv("PORT", "8080")
@@ -124,6 +134,11 @@ func main(){
 
 			if err != nil {
 			log.Printf("⚠️ Database transaction skipped: %v", err)
+		}
+
+		err = redisCache.SetPrice(ticker, price)
+		if err != nil{
+			log.Printf("Redis cache write failed for %s: %v", ticker, err)
 		}
 		})
 

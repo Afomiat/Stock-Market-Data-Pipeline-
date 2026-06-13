@@ -14,9 +14,14 @@ type RedisClient struct {
 	client *redis.Client
 }
 
+var ErrCacheMiss = fmt.Errorf("cache miss")
+
+
 func (r *RedisClient) formatKey(ticker string) string{
 	return fmt.Sprintf("price:%s", ticker)
 }
+
+
 func NewRedisClient() (*RedisClient, error){
 
 	redisURL := os.Getenv("REDIS_URL")
@@ -43,6 +48,7 @@ func NewRedisClient() (*RedisClient, error){
 	return &RedisClient{client: rdb}, nil
 }
 
+
 func (r *RedisClient) GetPrice(ticker string) (float64, error){
 	ctx := context.Background()
 	key := r.formatKey(ticker)
@@ -51,7 +57,7 @@ func (r *RedisClient) GetPrice(ticker string) (float64, error){
 	if err != nil{
 
 		if err == redis.Nil{
-			return  0, fmt.Errorf("cache miss: no price found for ticker %s", ticker)
+			return  0, ErrCacheMiss
 		}
 		return 0, fmt.Errorf("failed to fetch price for %s from cache: %w", ticker, err) 
 	}
