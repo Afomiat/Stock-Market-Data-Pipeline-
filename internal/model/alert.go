@@ -14,6 +14,8 @@ type Alert struct{
 	Condition   string    `json:"condition"`
     IsActive    bool      `json:"is_active"`
 	CreatedAt time.Time `json:"created_at"`
+	UserEmail string  `json:"user_email,omitempty"`
+
 	
 
 }

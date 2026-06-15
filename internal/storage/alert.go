@@ -126,9 +126,13 @@ func DeleteAlert(db *sql.DB, alertID string, userID string) error {
 
 func GetActiveAlertByTicker(db *sql.DB, ticker string) ([]model.Alert, error){
 	query := `
-		SELECT id, user_id, ticker, condition, target_price, is_active, created_at
-		FROM alerts
-		WHERE ticker = $1 AND is_active = true;
+		SELECT 
+				a.id, a.user_id, a.ticker, a.condition, a.target_price, a.is_active, 
+				a.created_at, u.email
+		FROM alerts a
+		JOIN users u ON u.id = a.user_id
+		WHERE a.ticker = $1 AND a.is_active = true
+		FOR UPDATE;
 
 	`
 	rows, err := db.Query(query, ticker)
@@ -151,6 +155,7 @@ func GetActiveAlertByTicker(db *sql.DB, ticker string) ([]model.Alert, error){
 			&alert.TargetPrice,
 			&alert.IsActive,
 			&alert.CreatedAt,
+			&alert.UserEmail,
 		)
 
 		if err != nil{

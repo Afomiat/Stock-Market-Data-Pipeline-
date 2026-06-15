@@ -6,9 +6,13 @@ import (
 	"log"
 	"stock-market-data-pipeline/internal/model"
 	"stock-market-data-pipeline/internal/storage"
+	"stock-market-data-pipeline/platform/email"
 	"stock-market-data-pipeline/platform/websocket"
+	"sync"
 	"time"
 )
+
+var processingAlerts sync.Map
 
 func CheckAndTriggerAlerts(db *sql.DB, wsManager *websocket.Manager, ticker string, currentPrice float64) {
 
@@ -42,9 +46,16 @@ func CheckAndTriggerAlerts(db *sql.DB, wsManager *websocket.Manager, ticker stri
 
 		if isTriggered{
 			
+			_, alreadyProcessing := processingAlerts.LoadOrStore(alert.ID, true)
+			if alreadyProcessing{
+				continue
+			}
+
 			err = storage.DeactivateAlert(db, alert.ID)
 			if err != nil{
 				log.Printf("Failed to auto-deactivate alert ID %s: %v", alert.ID, err)
+				processingAlerts.Delete(alert.ID)
+				continue
 			}
 			log.Printf("ALERT TRIGGERED! User %s: %s has hit $%.2f(Target was %s $%.2f)", alert.UserID, alert.Ticker, currentPrice, alert.Condition, alert.TargetPrice)
 		
@@ -59,6 +70,8 @@ func CheckAndTriggerAlerts(db *sql.DB, wsManager *websocket.Manager, ticker stri
 			messageBytes, err := json.Marshal(notification)
 			if err != nil {
 				log.Printf(" Failed to marshal notification struct: %v", err)
+				processingAlerts.Delete(alert.ID)
+				
 				continue
 			}
 
@@ -74,15 +87,16 @@ func CheckAndTriggerAlerts(db *sql.DB, wsManager *websocket.Manager, ticker stri
 				log.Printf("Live notification successfully streamed to user %s over WebSocket!", alert.UserID)
 			}
 
+			processingAlerts.Delete(alert.ID)
 			
-
-		
+			go func(emailAddress string, payload model.NotificationPayload){
+				err := email.SendAlertEmail(emailAddress, payload)
+				if err != nil{
+					log.Printf("Failed to send alert email to %s %v", emailAddress, err)
+				}else{
+					log.Printf("Alert email successfully queued and dispatched to %s", emailAddress)
+				}
+			}(alert.UserEmail, notification)	
+		}	
 	}
-
-		
-		
-
-	}
-
-	
 }

@@ -155,15 +155,7 @@ func main(){
 
 	}()
 	
-// TODO: REMOVE AFTER TESTING - Weekend Pipeline Mock Trigger
-    go func() {
-        log.Println("🧪 Mock trigger initialized... Waiting 60 seconds for WebSocket to connect.") // Updated text!
-        time.Sleep(120 * time.Second)
-        log.Println("🚀 Firing mock market price update: BTC/USD @ $65,000.00")
-        
-        // This forces your alert evaluation layer to run right now manually
-        alert.CheckAndTriggerAlerts(db, wsManager, "BTC/USD", 65000.00)
-    }()
+
 
 	if err := r.Run(":"+ port); err != nil{
 		log.Fatalf("failed to start server %v", err)
