@@ -2,11 +2,11 @@ package storage
 
 import (
 	"database/sql"
-	"stock-market-data-pipeline/internal/model"
 	"errors"
-	
+	"fmt"
+	"stock-market-data-pipeline/internal/model"
 
-	
+	"github.com/google/uuid"
 )
 
 func CreateAlert(db *sql.DB, userID string, req model.CreateAlertRequest) (*model.Alert, error){
@@ -123,3 +123,53 @@ func DeleteAlert(db *sql.DB, alertID string, userID string) error {
 
 	return nil
 }
+
+func GetActiveAlertByTicker(db *sql.DB, ticker string) ([]model.Alert, error){
+	query := `
+		SELECT id, user_id, ticker, condition, target_price, is_active, created_at
+		FROM alerts
+		WHERE ticker = $1 AND is_active = true;
+
+	`
+	rows, err := db.Query(query, ticker)
+
+	if err != nil{
+		return nil, fmt.Errorf("failed to query active alerts for %s: %w", ticker, err)
+	}
+
+	defer rows.Close()
+
+	var alerts []model.Alert
+
+	for rows.Next(){
+		var alert model.Alert
+		err := rows.Scan(
+			&alert.ID,
+			&alert.UserID,
+			&alert.Ticker,
+			&alert.Condition,
+			&alert.TargetPrice,
+			&alert.IsActive,
+			&alert.CreatedAt,
+		)
+
+		if err != nil{
+			return nil, fmt.Errorf("failed to scan alert row: %w", err)
+		}
+		alerts = append(alerts, alert)
+	}
+	if err = rows.Err(); err != nil {
+		return nil, fmt.Errorf("error during alert rows iteration: %w", err)
+	}
+
+	return alerts, nil
+}
+
+func DeactivateAlert(db *sql.DB, alertID uuid.UUID) error{
+	query := `UPDATE alerts SET is_active = false WHERE id = $1`
+	_, err := db.Exec(query, alertID)
+	return  err
+}
+
+
+

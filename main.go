@@ -1,16 +1,20 @@
 package main
 
 import (
+	"context"
 	"database/sql"
 	"fmt"
 	"log"
 	"net/http"
 	"os"
+	"stock-market-data-pipeline/internal/alert"
 	"stock-market-data-pipeline/internal/handler"
 	"stock-market-data-pipeline/internal/middleware"
 	"stock-market-data-pipeline/internal/storage"
 	"stock-market-data-pipeline/platform/alpaca"
 	"stock-market-data-pipeline/platform/cache"
+	"stock-market-data-pipeline/platform/websocket"
+	"time"
 
 	"github.com/gin-gonic/gin"
 	_ "github.com/jackc/pgx/v5/stdlib"
@@ -56,11 +60,13 @@ func connectDB(){
 	if err != nil{
 		log.Fatalf("Failed to open database:%v", err)
 	}
-	err = db.Ping()
-	if err != nil{
-		log.Fatalf("Failed to ping db: %v", err)
-	}
+	ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
+	defer cancel()
 
+	err = db.PingContext(ctx)
+	if err != nil {
+		log.Fatalf("❌ Failed to ping db (timed out after 5s): %v", err)
+	}
 	fmt.Println("db connected!")
 
 }
@@ -79,6 +85,7 @@ func main(){
 	}
 
 	fmt.Println("Redis cache connected successfully!")
+	wsManager := websocket.NewManager()
 	r := gin.Default()
 
 	
@@ -101,6 +108,7 @@ func main(){
 		protected.PUT("/alerts/:id", handler.UpdateAlertHandler(db))
 		protected.DELETE("/alerts/:id", handler.DeleteAlertHandler(db))
 		protected.GET("/stocks/:ticker/price", handler.GetStockPriceHandler(db, redisCache))
+		protected.GET("/ws", handler.HandleWebSocket(wsManager))
 	}
 
 	port := getEnv("PORT", "8080")
@@ -140,10 +148,22 @@ func main(){
 		if err != nil{
 			log.Printf("Redis cache write failed for %s: %v", ticker, err)
 		}
+
+		alert.CheckAndTriggerAlerts(db, wsManager,ticker, price)
+		
 		})
 
 	}()
-
+	
+// TODO: REMOVE AFTER TESTING - Weekend Pipeline Mock Trigger
+    go func() {
+        log.Println("🧪 Mock trigger initialized... Waiting 60 seconds for WebSocket to connect.") // Updated text!
+        time.Sleep(120 * time.Second)
+        log.Println("🚀 Firing mock market price update: BTC/USD @ $65,000.00")
+        
+        // This forces your alert evaluation layer to run right now manually
+        alert.CheckAndTriggerAlerts(db, wsManager, "BTC/USD", 65000.00)
+    }()
 
 	if err := r.Run(":"+ port); err != nil{
 		log.Fatalf("failed to start server %v", err)
