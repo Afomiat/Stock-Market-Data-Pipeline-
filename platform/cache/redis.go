@@ -37,10 +37,17 @@ func NewRedisClient() (*RedisClient, error){
 	}
 
 	if strings.HasPrefix(redisURL, "rediss://") {
-		opt.TLSConfig = &tls.Config{
-			InsecureSkipVerify: true, 
-		}
-	}
+        host := opt.Addr
+        if strings.Contains(host, ":") {
+            host = strings.Split(host, ":")[0]
+        }
+
+        opt.TLSConfig = &tls.Config{
+            MinVersion:         tls.VersionTLS12,
+            InsecureSkipVerify: true,
+            ServerName:         host,
+        }
+    }
 
 	rdb := redis.NewClient(opt)
 
