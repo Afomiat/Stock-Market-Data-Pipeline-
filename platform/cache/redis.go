@@ -27,32 +27,44 @@ func (r *RedisClient) formatKey(ticker string) string{
 func NewRedisClient() (*RedisClient, error){
 
     redisURL := os.Getenv("REDIS_URL")
-    if redisURL == ""{
+    if redisURL == "" {
         redisURL = "redis://localhost:6379"
     }
 
-    parsedOpt, err := redis.ParseURL(redisURL)
-    if err != nil{
-        return nil, fmt.Errorf("failed to parse redis url: %w", err)
-    }
+    var opt *redis.Options
+    if strings.Contains(redisURL, "localhost") || strings.Contains(redisURL, "127.0.0.1") {
+        opt = &redis.Options{
+            Addr: "localhost:6379",
+        }
+    } else {
+        
+        cleanURL := strings.TrimPrefix(redisURL, "rediss://")
+        cleanURL = strings.TrimPrefix(cleanURL, "redis://")
 
-    opt := &redis.Options{
-        Addr:     parsedOpt.Addr,
-        Username: parsedOpt.Username,
-        Password: parsedOpt.Password,
-        DB:       parsedOpt.DB,
-    }
+        parts := strings.Split(cleanURL, "@")
+        if len(parts) != 2 {
+            return nil, fmt.Errorf("malformed REDIS_URL configuration string")
+        }
 
-    if !strings.Contains(opt.Addr, "localhost") && !strings.Contains(opt.Addr, "127.0.0.1") {
-        host := opt.Addr
+        credentials := parts[0]
+        address := parts[1]
+        credParts := strings.Split(credentials, ":")
+        password := credParts[len(credParts)-1] 
+
+        host := address
         if strings.Contains(host, ":") {
             host = strings.Split(host, ":")[0]
         }
 
-        opt.TLSConfig = &tls.Config{
-            MinVersion:         tls.VersionTLS12,
-            InsecureSkipVerify: true, 
-            ServerName:         host, 
+        opt = &redis.Options{
+            Addr:     address,
+            Username: "default",
+            Password: password,
+            TLSConfig: &tls.Config{
+                MinVersion:         tls.VersionTLS12,
+                InsecureSkipVerify: true, 
+                ServerName:         host,
+            },
         }
     }
 
@@ -61,8 +73,8 @@ func NewRedisClient() (*RedisClient, error){
     ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
     defer cancel()
 
-    err = rdb.Ping(ctx).Err()
-    if err != nil{
+    err := rdb.Ping(ctx).Err()
+    if err != nil {
         return nil, fmt.Errorf("could not connect to redis: %w", err)
     }
 
