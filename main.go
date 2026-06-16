@@ -109,6 +109,7 @@ func main(){
 		protected.DELETE("/alerts/:id", handler.DeleteAlertHandler(db))
 		protected.GET("/stocks/:ticker/price", handler.GetStockPriceHandler(db, redisCache))
 		protected.GET("/ws", handler.HandleWebSocket(wsManager))
+		protected.GET("/notifications", handler.GetNotificationsHandler(db))
 	}
 
 	port := getEnv("PORT", "8080")

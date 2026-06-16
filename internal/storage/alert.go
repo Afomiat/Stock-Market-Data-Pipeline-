@@ -131,8 +131,7 @@ func GetActiveAlertByTicker(db *sql.DB, ticker string) ([]model.Alert, error){
 				a.created_at, u.email
 		FROM alerts a
 		JOIN users u ON u.id = a.user_id
-		WHERE a.ticker = $1 AND a.is_active = true
-		FOR UPDATE;
+		WHERE a.ticker = $1 AND a.is_active = true;
 
 	`
 	rows, err := db.Query(query, ticker)
