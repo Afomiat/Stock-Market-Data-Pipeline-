@@ -4,8 +4,10 @@ import (
 	"context"
 	"fmt"
 	"os"
-	"time"
 	"strconv"
+	"strings"
+	"time"
+	"crypto/tls"
 
 	"github.com/redis/go-redis/v9"
 )
@@ -32,6 +34,12 @@ func NewRedisClient() (*RedisClient, error){
 	opt, err := redis.ParseURL(redisURL)
 	if err != nil{
 		return nil, fmt.Errorf("failed to parse redis url: %w", err)
+	}
+
+	if strings.HasPrefix(redisURL, "rediss://") {
+		opt.TLSConfig = &tls.Config{
+			InsecureSkipVerify: true, 
+		}
 	}
 
 	rdb := redis.NewClient(opt)
