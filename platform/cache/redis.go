@@ -5,7 +5,6 @@ import (
 	"fmt"
 	"os"
 	"strconv"
-	"strings"
 	"time"
 	"crypto/tls"
 
@@ -24,61 +23,39 @@ func (r *RedisClient) formatKey(ticker string) string{
 }
 
 
-func NewRedisClient() (*RedisClient, error){
+func NewRedisClient() (*RedisClient, error) {
+	redisURL := os.Getenv("REDIS_URL")
+	if redisURL == "" {
+		redisURL = "redis://localhost:6379"
+	}
 
-    redisURL := os.Getenv("REDIS_URL")
-    if redisURL == "" {
-        redisURL = "redis://localhost:6379"
-    }
+	fmt.Printf("DEBUG: Connecting to Redis, URL prefix: %s\n", redisURL[:30]) 
 
-    var opt *redis.Options
-    if strings.Contains(redisURL, "localhost") || strings.Contains(redisURL, "127.0.0.1") {
-        opt = &redis.Options{
-            Addr: "localhost:6379",
-        }
-    } else {
-        
-        cleanURL := strings.TrimPrefix(redisURL, "rediss://")
-        cleanURL = strings.TrimPrefix(cleanURL, "redis://")
+	opt, err := redis.ParseURL(redisURL)
+	if err != nil {
+		return nil, fmt.Errorf("failed to parse REDIS_URL: %w", err)
+	}
 
-        parts := strings.Split(cleanURL, "@")
-        if len(parts) != 2 {
-            return nil, fmt.Errorf("malformed REDIS_URL configuration string")
-        }
+	opt.TLSConfig = &tls.Config{
+		MinVersion: tls.VersionTLS12,
+		ServerName: "welcomed-troll-76600.upstash.io",
+		InsecureSkipVerify: false,
+	}
 
-        credentials := parts[0]
-        address := parts[1]
-        credParts := strings.Split(credentials, ":")
-        password := credParts[len(credParts)-1] 
+	opt.DialTimeout  = 15 * time.Second
+	opt.ReadTimeout  = 15 * time.Second
+	opt.WriteTimeout = 15 * time.Second
 
-        host := address
-        if strings.Contains(host, ":") {
-            host = strings.Split(host, ":")[0]
-        }
+	rdb := redis.NewClient(opt)
 
-        opt = &redis.Options{
-            Addr:     address,
-            Username: "default",
-            Password: password,
-            TLSConfig: &tls.Config{
-                MinVersion:         tls.VersionTLS12,
-                InsecureSkipVerify: true, 
-                ServerName:         host,
-            },
-        }
-    }
+	ctx, cancel := context.WithTimeout(context.Background(), 15*time.Second)
+	defer cancel()
 
-    rdb := redis.NewClient(opt)
+	if err := rdb.Ping(ctx).Err(); err != nil {
+		return nil, fmt.Errorf("could not connect to redis: %w", err)
+	}
 
-    ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
-    defer cancel()
-
-    err := rdb.Ping(ctx).Err()
-    if err != nil {
-        return nil, fmt.Errorf("could not connect to redis: %w", err)
-    }
-
-    return &RedisClient{client: rdb}, nil
+	return &RedisClient{client: rdb}, nil
 }
 
 func (r *RedisClient) GetPrice(ticker string) (float64, error){

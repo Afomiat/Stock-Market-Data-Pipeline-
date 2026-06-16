@@ -9,23 +9,10 @@ services:
     environment:
       - PORT=${PORT}
       - DATABASE_URL=${DATABASE_URL}
-      - REDIS_URL=${REDIS_URL}
+      - UPSTASH_REDIS_REST_URL=${UPSTASH_REDIS_REST_URL}
+      - UPSTASH_REDIS_REST_TOKEN=${UPSTASH_REDIS_REST_TOKEN}
       - JWT_SECRET=${JWT_SECRET}
       - ALPACA_API_KEY=${ALPACA_API_KEY}
       - RESEND_API_KEY=${RESEND_API_KEY}
       - FROM_EMAIL=${FROM_EMAIL}
-    depends_on:
-      - redis
     restart: always
-
-  redis:
-    image: redis:7-alpine
-    container_name: stock_pipeline_redis
-    ports:
-      - "6379:6379"
-    volumes:
-      - redis_data:/data
-    restart: always
-
-volumes:
-  redis_data:
