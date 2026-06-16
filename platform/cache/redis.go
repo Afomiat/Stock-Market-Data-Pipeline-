@@ -1,92 +1,122 @@
 package cache
 
 import (
-	"context"
+	"bytes"
+	"encoding/json"
 	"fmt"
+	"io"
+	"net/http"
 	"os"
 	"strconv"
 	"time"
-	"crypto/tls"
-
-	"github.com/redis/go-redis/v9"
 )
 
 type RedisClient struct {
-	client *redis.Client
+	restURL   string
+	restToken string
+	http      *http.Client
 }
 
 var ErrCacheMiss = fmt.Errorf("cache miss")
 
-
-func (r *RedisClient) formatKey(ticker string) string{
+func (r *RedisClient) formatKey(ticker string) string {
 	return fmt.Sprintf("price:%s", ticker)
 }
 
-
 func NewRedisClient() (*RedisClient, error) {
-	redisURL := os.Getenv("REDIS_URL")
-	if redisURL == "" {
-		redisURL = "redis://localhost:6379"
+	restURL := os.Getenv("UPSTASH_REDIS_REST_URL")
+	restToken := os.Getenv("UPSTASH_REDIS_REST_TOKEN")
+
+	if restURL == "" || restToken == "" {
+		return nil, fmt.Errorf("UPSTASH_REDIS_REST_URL and UPSTASH_REDIS_REST_TOKEN must be set")
 	}
 
+	client := &RedisClient{
+		restURL:   restURL,
+		restToken: restToken,
+		http:      &http.Client{Timeout: 10 * time.Second},
+	}
 
-	opt, err := redis.ParseURL(redisURL)
+	result, err := client.do("PING")
 	if err != nil {
-		return nil, fmt.Errorf("failed to parse REDIS_URL: %w", err)
-	}
-
-	opt.TLSConfig = &tls.Config{
-		MinVersion: tls.VersionTLS12,
-		ServerName: "welcomed-troll-76600.upstash.io",
-		InsecureSkipVerify: false,
-	}
-
-	opt.DialTimeout  = 15 * time.Second
-	opt.ReadTimeout  = 15 * time.Second
-	opt.WriteTimeout = 15 * time.Second
-
-	rdb := redis.NewClient(opt)
-
-	ctx, cancel := context.WithTimeout(context.Background(), 15*time.Second)
-	defer cancel()
-
-	if err := rdb.Ping(ctx).Err(); err != nil {
 		return nil, fmt.Errorf("could not connect to redis: %w", err)
 	}
+	fmt.Printf("Redis REST ping result: %v\n", result)
 
-	return &RedisClient{client: rdb}, nil
+	return client, nil
 }
 
-func (r *RedisClient) GetPrice(ticker string) (float64, error){
-	ctx := context.Background()
-	key := r.formatKey(ticker)
-
-	val, err := r.client.Get(ctx, key).Result()
-	if err != nil{
-
-		if err == redis.Nil{
-			return  0, ErrCacheMiss
-		}
-		return 0, fmt.Errorf("failed to fetch price for %s from cache: %w", ticker, err) 
+func (r *RedisClient) do(args ...interface{}) (interface{}, error) {
+	body, err := json.Marshal(args)
+	if err != nil {
+		return nil, err
 	}
 
-	price, err := strconv.ParseFloat(val, 64)
-	if err!= nil{
-		return 0, fmt.Errorf("failed to parse cached price string '%s' to float64: %w", val, err)
+	req, err := http.NewRequest("POST", r.restURL, bytes.NewBuffer(body))
+	if err != nil {
+		return nil, err
+	}
+
+	req.Header.Set("Authorization", "Bearer "+r.restToken)
+	req.Header.Set("Content-Type", "application/json")
+
+	resp, err := r.http.Do(req)
+	if err != nil {
+		return nil, err
+	}
+	defer resp.Body.Close()
+
+	data, err := io.ReadAll(resp.Body)
+	if err != nil {
+		return nil, err
+	}
+
+	var result struct {
+		Result interface{} `json:"result"`
+		Error  string      `json:"error"`
+	}
+	if err := json.Unmarshal(data, &result); err != nil {
+		return nil, err
+	}
+	if result.Error != "" {
+		return nil, fmt.Errorf("redis error: %s", result.Error)
+	}
+
+	return result.Result, nil
+}
+
+func (r *RedisClient) GetPrice(ticker string) (float64, error) {
+	key := r.formatKey(ticker)
+
+	result, err := r.do("GET", key)
+	if err != nil {
+		return 0, fmt.Errorf("failed to fetch price for %s from cache: %w", ticker, err)
+	}
+
+	if result == nil {
+		return 0, ErrCacheMiss
+	}
+
+	str, ok := result.(string)
+	if !ok {
+		return 0, fmt.Errorf("unexpected result type from cache")
+	}
+
+	price, err := strconv.ParseFloat(str, 64)
+	if err != nil {
+		return 0, fmt.Errorf("failed to parse cached price '%s': %w", str, err)
 	}
 
 	return price, nil
 }
 
-func (r *RedisClient) SetPrice(ticker string, price float64) error{
-	ctx := context.Background()
+func (r *RedisClient) SetPrice(ticker string, price float64) error {
 	key := r.formatKey(ticker)
 
-	err := r.client.Set(ctx, key, price, time.Hour).Err()
-
+	_, err := r.do("SET", key, fmt.Sprintf("%f", price), "EX", 3600)
 	if err != nil {
 		return fmt.Errorf("failed to cache price for %s: %w", ticker, err)
 	}
 
-	return nil 
+	return nil
 }
