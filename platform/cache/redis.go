@@ -29,7 +29,6 @@ func NewRedisClient() (*RedisClient, error) {
 		redisURL = "redis://localhost:6379"
 	}
 
-	fmt.Printf("DEBUG: Connecting to Redis, URL prefix: %s\n", redisURL[:30]) 
 
 	opt, err := redis.ParseURL(redisURL)
 	if err != nil {
