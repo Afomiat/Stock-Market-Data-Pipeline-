@@ -26,17 +26,24 @@ func (r *RedisClient) formatKey(ticker string) string{
 
 func NewRedisClient() (*RedisClient, error){
 
-	redisURL := os.Getenv("REDIS_URL")
-	if redisURL == ""{
-		redisURL = "redis://localhost:6379"
-	}
+    redisURL := os.Getenv("REDIS_URL")
+    if redisURL == ""{
+        redisURL = "redis://localhost:6379"
+    }
 
-	opt, err := redis.ParseURL(redisURL)
-	if err != nil{
-		return nil, fmt.Errorf("failed to parse redis url: %w", err)
-	}
+    parsedOpt, err := redis.ParseURL(redisURL)
+    if err != nil{
+        return nil, fmt.Errorf("failed to parse redis url: %w", err)
+    }
 
-	if strings.HasPrefix(redisURL, "rediss://") {
+    opt := &redis.Options{
+        Addr:     parsedOpt.Addr,
+        Username: parsedOpt.Username,
+        Password: parsedOpt.Password,
+        DB:       parsedOpt.DB,
+    }
+
+    if !strings.Contains(opt.Addr, "localhost") && !strings.Contains(opt.Addr, "127.0.0.1") {
         host := opt.Addr
         if strings.Contains(host, ":") {
             host = strings.Split(host, ":")[0]
@@ -44,25 +51,23 @@ func NewRedisClient() (*RedisClient, error){
 
         opt.TLSConfig = &tls.Config{
             MinVersion:         tls.VersionTLS12,
-            InsecureSkipVerify: true,
-            ServerName:         host,
+            InsecureSkipVerify: true, 
+            ServerName:         host, 
         }
     }
 
-	rdb := redis.NewClient(opt)
+    rdb := redis.NewClient(opt)
 
-	ctx, cancel := context.WithTimeout(context.Background(), 3*time.Second)
+    ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
+    defer cancel()
 
-	defer cancel()
+    err = rdb.Ping(ctx).Err()
+    if err != nil{
+        return nil, fmt.Errorf("could not connect to redis: %w", err)
+    }
 
-	err = rdb.Ping(ctx).Err()
-	if err != nil{
-		return nil, fmt.Errorf("could not connect to redis: %w", err)
-	}
-
-	return &RedisClient{client: rdb}, nil
+    return &RedisClient{client: rdb}, nil
 }
-
 
 func (r *RedisClient) GetPrice(ticker string) (float64, error){
 	ctx := context.Background()
