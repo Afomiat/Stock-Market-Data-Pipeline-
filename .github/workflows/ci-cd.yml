@@ -1,4 +1,4 @@
-name: Continuous Integration & Deployment
+name: Continuous Integration
 
 on:
   push:
@@ -25,20 +25,3 @@ jobs:
 
       - name: Execute Test Suite
         run: go test -v -race -covermode=atomic ./...
-
-  deploy:
-    name: Deploy to Production (Railway)
-    needs: test 
-    if: github.ref == 'refs/heads/main' && github.event_name == 'push'
-    runs-on: ubuntu-latest
-    steps:
-      - name: Checkout Source Code
-        uses: actions/checkout@v4
-
-      - name: Install Railway CLI
-        run: npm install -g @railway/cli
-
-      - name: Deploy Infrastructure Container
-        run: railway up --detach
-        env:
-          RAILWAY_TOKEN: ${{ secrets.RAILWAY_TOKEN }}
