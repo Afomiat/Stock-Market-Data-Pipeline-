@@ -75,6 +75,21 @@ async function fetchYahooHistory(ticker, yhInterval, yhRange) {
   }
 }
 
+// Format seconds remaining as HH:MM:SS or MM:SS
+function formatCountdown(secs) {
+  if (secs <= 0) return '00:00';
+  const h = Math.floor(secs / 3600);
+  const m = Math.floor((secs % 3600) / 60);
+  const s = secs % 60;
+  
+  const pad = (num) => String(num).padStart(2, '0');
+  
+  if (h > 0) {
+    return `${pad(h)}:${pad(m)}:${pad(s)}`;
+  }
+  return `${pad(m)}:${pad(s)}`;
+}
+
 const PriceChart = ({ ticker = 'AAPL', currentPrice, wsLastPriceUpdate }) => {
   const chartRef       = useRef(null);
   const chartInstance  = useRef(null);
@@ -93,11 +108,32 @@ const PriceChart = ({ ticker = 'AAPL', currentPrice, wsLastPriceUpdate }) => {
   const mainSeriesRef   = useRef(null);
   const volumeSeriesRef = useRef(null);
 
+  // Candle close countdown state
+  const [timeLeft, setTimeLeft]         = useState(0);
+
   // Update session badge every minute
   useEffect(() => {
     const id = setInterval(() => setSession(getMarketSession()), 60_000);
     return () => clearInterval(id);
   }, []);
+
+  // Tick timer countdown before active candle closes
+  useEffect(() => {
+    let bucketSize = 3600; // default 1h
+    if (interval === '1m') bucketSize = 60;
+    else if (interval === '5m') bucketSize = 300;
+    else if (interval === '1d') bucketSize = 86400;
+
+    const updateTimer = () => {
+      const now = Math.floor(Date.now() / 1000);
+      const nextBucketStart = (Math.floor(now / bucketSize) * bucketSize) + bucketSize;
+      setTimeLeft(Math.max(0, nextBucketStart - now));
+    };
+
+    updateTimer();
+    const timerId = setInterval(updateTimer, 1000);
+    return () => clearInterval(timerId);
+  }, [interval]);
 
   const intervalCfg = INTERVALS.find(i => i.value === interval) ?? INTERVALS[2];
 
@@ -403,6 +439,15 @@ const PriceChart = ({ ticker = 'AAPL', currentPrice, wsLastPriceUpdate }) => {
           )}
           {fetchError && !fetchLoading && (
             <span className="text-xs font-mono" style={{ color: '#FF4D6D' }}>no data</span>
+          )}
+
+          {/* Candle Close Countdown Timer */}
+          {!fetchLoading && !fetchError && (
+            <span className="text-xs font-mono px-2 py-0.5 rounded flex items-center gap-1.5"
+              style={{ background: 'rgba(0,212,255,0.06)', color: '#00D4FF', border: '1px solid rgba(0,212,255,0.15)' }}>
+              <span className="w-1.5 h-1.5 rounded-full bg-[#00D4FF] animate-pulse" />
+              {interval.toUpperCase()} CLOSE: {formatCountdown(timeLeft)}
+            </span>
           )}
         </div>
 
