@@ -14,6 +14,7 @@ import (
 	"stock-market-data-pipeline/internal/storage"
 	"stock-market-data-pipeline/platform/alpaca"
 	"stock-market-data-pipeline/platform/cache"
+	"stock-market-data-pipeline/platform/seeder"
 	"stock-market-data-pipeline/platform/websocket"
 	"time"
 
@@ -79,6 +80,8 @@ func main(){
 	connectDB()
 	defer db.Close()
 
+	go seeder.SeedHistoricalData(db, []string{"AAPL", "NVDA", "TSLA"})
+	
 	var err error
 	redisCache, err = cache.NewRedisClient()
 	if err != nil{

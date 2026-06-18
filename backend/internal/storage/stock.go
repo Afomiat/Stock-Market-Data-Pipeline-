@@ -101,3 +101,19 @@ func GetTodayOpenPrice(db *sql.DB, ticker string) (float64, error){
 
     return openPrice, nil
 }
+
+func GetLatestVolume(db *sql.DB, ticker string) (int64, error) {
+    var volume int64
+    query := `
+            SELECT volume FROM stock_prices
+            WHERE ticker = $1
+            ORDER BY timestamp DESC
+            LIMIT 1;
+    `
+    err := db.QueryRow(query, ticker).Scan(&volume)
+    if err != nil{
+        return 0, err
+    }
+    
+    return volume, nil
+}

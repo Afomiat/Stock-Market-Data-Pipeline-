@@ -33,7 +33,14 @@ func GetStockPriceHandler(streamProc *service.StreamProcessor) gin.HandlerFunc {
 			log.Printf("Cache miss for %s. falling back to postgres storage system...", ticker)
 			dbPrice, dbErr := storage.GetLatestPrice(streamProc.DB(), ticker)
 			if dbErr != nil {
-				c.JSON(http.StatusNotFound, gin.H{"error": dbErr.Error()})
+				c.JSON(http.StatusOK, gin.H{
+					"ticker":         ticker,
+					"price":          nil,
+					"change":         0,
+					"change_percent": 0,
+					"volume":         nil,
+					"source":         "no_data",
+				})
 				return
 			}
 			price = dbPrice
@@ -44,7 +51,10 @@ func GetStockPriceHandler(streamProc *service.StreamProcessor) gin.HandlerFunc {
 			}
 		}
 
-		enrichedResponse, err := streamProc.ProcessLiveTick(ticker, price, 0)
+
+		volume, _ := storage.GetLatestVolume(streamProc.DB(), ticker)
+
+		enrichedResponse, err := streamProc.ProcessLiveTick(ticker, price, volume)
 		if err != nil {
 			c.JSON(http.StatusInternalServerError, gin.H{"error": "Calculations engine failure"})
 			return
@@ -55,6 +65,7 @@ func GetStockPriceHandler(streamProc *service.StreamProcessor) gin.HandlerFunc {
 			"price":          enrichedResponse.Price,
 			"change":         enrichedResponse.Change,         
 			"change_percent": enrichedResponse.ChangePercent,  
+			"volume":         enrichedResponse.Volume,
 			"timestamp":      enrichedResponse.Timestamp,
 			"source":         source,
 		})
