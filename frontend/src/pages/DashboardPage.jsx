@@ -60,10 +60,12 @@ const DashboardPage = ({ wsLastPriceUpdate, wsConnected }) => {
     const results = {};
     const vols    = {};
     const chg     = {};
+    const sessionOhlc = {};
 
     await Promise.allSettled(
       TRACKED_TICKERS.map(async (ticker) => {
         try {
+          // Get current price/volume/change stats
           const res = await axios.get(`/api/stocks/${ticker}/price`);
           results[ticker] = res.data.price;
           vols[ticker]    = res.data.volume ?? null;
@@ -73,6 +75,27 @@ const DashboardPage = ({ wsLastPriceUpdate, wsConnected }) => {
               changePercent: res.data.change_percent,
             };
           }
+
+          // Fetch historical 1h bars to pre-warm the open/high/low session stats
+          try {
+            const histRes = await axios.get(`/api/stocks/${ticker}/history?interval=1h`);
+            const candles = Array.isArray(histRes.data) ? histRes.data : [];
+            if (candles.length > 0) {
+              const todayStr = new Date().toDateString();
+              const todayCandles = candles.filter(c => new Date(c.timestamp).toDateString() === todayStr);
+
+              if (todayCandles.length > 0) {
+                const open = todayCandles[0].open;
+                const high = Math.max(...todayCandles.map(c => c.high));
+                const low  = Math.min(...todayCandles.map(c => c.low));
+                sessionOhlc[ticker] = { open, high, low };
+              } else {
+                // Off-hours / weekend fallback: use the last available candle
+                const last = candles[candles.length - 1];
+                sessionOhlc[ticker] = { open: last.open, high: last.high, low: last.low };
+              }
+            }
+          } catch (_) {}
         } catch (_) {}
       })
     );
@@ -81,6 +104,7 @@ const DashboardPage = ({ wsLastPriceUpdate, wsConnected }) => {
       setPrices(p  => ({ ...p, ...results }));
       setVolumes(v => ({ ...v, ...vols }));
       setChanges(c => ({ ...c, ...chg }));
+      setOhlc(o    => ({ ...o, ...sessionOhlc }));
       setLastUpdate(new Date());
     }
     setLoading(false);

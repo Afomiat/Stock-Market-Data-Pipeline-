@@ -6,6 +6,7 @@ import {
   CrosshairMode,
   AreaSeries,
   CandlestickSeries,
+  HistogramSeries,
 } from 'lightweight-charts';
 
 const INTERVALS = [
@@ -55,6 +56,7 @@ async function fetchYahooHistory(ticker, yhInterval, yhRange) {
     const highs      = quote.high  ?? [];
     const lows       = quote.low   ?? [];
     const closes     = quote.close ?? [];
+    const volumes    = quote.volume ?? [];
 
     return timestamps
       .map((t, i) => ({
@@ -63,6 +65,7 @@ async function fetchYahooHistory(ticker, yhInterval, yhRange) {
         high:  highs[i]  != null ? parseFloat(highs[i].toFixed(4))  : null,
         low:   lows[i]   != null ? parseFloat(lows[i].toFixed(4))   : null,
         close: closes[i] != null ? parseFloat(closes[i].toFixed(4)) : null,
+        volume: volumes[i] != null ? volumes[i] : 0,
       }))
       .filter(d => d.open != null && d.close != null && d.high != null && d.low != null)
       .sort((a, b) => a.time - b.time)
@@ -113,6 +116,7 @@ const PriceChart = ({ ticker = 'AAPL', currentPrice }) => {
               high:  d.high,
               low:   d.low,
               close: d.close,
+              volume: d.volume,
             }))
             .sort((a, b) => a.time - b.time)
             .filter((d, i, arr) => i === 0 || d.time !== arr[i - 1].time);
@@ -198,6 +202,33 @@ const PriceChart = ({ ticker = 'AAPL', currentPrice }) => {
         });
         series.setData(areaData);
       }
+
+      // Add Volume Histogram Series overlay
+      const volumeSeries = chart.addSeries(HistogramSeries, {
+        color: '#26a69a',
+        priceFormat: {
+          type: 'volume',
+        },
+        priceScaleId: '', // overlay inside main pane
+      });
+
+      volumeSeries.priceScale().applyOptions({
+        scaleMargins: {
+          top: 0.8, // 80% empty from top, volume takes bottom 20%
+          bottom: 0,
+        },
+      });
+
+      const volumeData = historyData.map(d => {
+        const isUp = d.close >= d.open;
+        return {
+          time: d.time,
+          value: d.volume || 0,
+          color: isUp ? 'rgba(0, 229, 160, 0.35)' : 'rgba(255, 77, 109, 0.35)',
+        };
+      });
+      volumeSeries.setData(volumeData);
+
       chart.timeScale().fitContent();
     }
 
