@@ -309,6 +309,7 @@ const DashboardPage = ({ wsLastPriceUpdate, wsConnected }) => {
             <PriceChart
               ticker={selectedTicker}
               currentPrice={prices[selectedTicker]}
+              wsLastPriceUpdate={wsLastPriceUpdate}
             />
           </ChartBoundary>
         </div>

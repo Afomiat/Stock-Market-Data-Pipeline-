@@ -75,7 +75,7 @@ async function fetchYahooHistory(ticker, yhInterval, yhRange) {
   }
 }
 
-const PriceChart = ({ ticker = 'AAPL', currentPrice }) => {
+const PriceChart = ({ ticker = 'AAPL', currentPrice, wsLastPriceUpdate }) => {
   const chartRef       = useRef(null);
   const chartInstance  = useRef(null);
   const [chartType, setChartType]       = useState('area');
@@ -85,6 +85,13 @@ const PriceChart = ({ ticker = 'AAPL', currentPrice }) => {
   const [fetchLoading, setFetchLoading] = useState(false);
   const [dataSource, setDataSource]     = useState('');
   const [session, setSession]           = useState(getMarketSession());
+
+  // Real-time hover details
+  const [hoveredBar, setHoveredBar]     = useState(null);
+
+  // Keep references to series for live WebSocket updating
+  const mainSeriesRef   = useRef(null);
+  const volumeSeriesRef = useRef(null);
 
   // Update session badge every minute
   useEffect(() => {
@@ -184,16 +191,17 @@ const PriceChart = ({ ticker = 'AAPL', currentPrice }) => {
     chartInstance.current = chart;
 
     if (historyData.length > 0) {
+      let mainSeries;
       if (chartType === 'candle') {
-        const series = chart.addSeries(CandlestickSeries, {
+        mainSeries = chart.addSeries(CandlestickSeries, {
           upColor: '#00E5A0', downColor: '#FF4D6D',
           borderUpColor: '#00E5A0', borderDownColor: '#FF4D6D',
           wickUpColor: '#00E5A0', wickDownColor: '#FF4D6D',
         });
-        series.setData(historyData);
+        mainSeries.setData(historyData);
       } else {
         const areaData = historyData.map(d => ({ time: d.time, value: d.close }));
-        const series = chart.addSeries(AreaSeries, {
+        mainSeries = chart.addSeries(AreaSeries, {
           lineColor: '#00D4FF',
           topColor: 'rgba(0,212,255,0.22)',
           bottomColor: 'rgba(0,212,255,0.01)',
@@ -201,7 +209,7 @@ const PriceChart = ({ ticker = 'AAPL', currentPrice }) => {
           priceLineVisible: true,
           lastValueVisible: true,
         });
-        series.setData(areaData);
+        mainSeries.setData(areaData);
       }
 
       // Add Volume Histogram Series overlay
@@ -230,6 +238,37 @@ const PriceChart = ({ ticker = 'AAPL', currentPrice }) => {
       });
       volumeSeries.setData(volumeData);
 
+      // Keep tracking references for WS updates
+      mainSeriesRef.current   = mainSeries;
+      volumeSeriesRef.current = volumeSeries;
+
+      // Subscribe to crosshair movement to capture hover data metrics
+      chart.subscribeCrosshairMove(param => {
+        if (
+          param.point === undefined ||
+          !param.time ||
+          param.point.x < 0 ||
+          param.point.x > el.clientWidth ||
+          param.point.y < 0 ||
+          param.point.y > el.clientHeight
+        ) {
+          setHoveredBar(null);
+        } else {
+          const hoveredPrices = param.seriesData.get(mainSeries);
+          if (hoveredPrices) {
+            const hoveredVol = param.seriesData.get(volumeSeries);
+            setHoveredBar({
+              time: param.time,
+              open: hoveredPrices.open ?? null,
+              high: hoveredPrices.high ?? null,
+              low: hoveredPrices.low ?? null,
+              close: hoveredPrices.close ?? hoveredPrices.value ?? null,
+              volume: hoveredVol ? hoveredVol.value : null,
+            });
+          }
+        }
+      });
+
       chart.timeScale().fitContent();
     }
 
@@ -242,8 +281,78 @@ const PriceChart = ({ ticker = 'AAPL', currentPrice }) => {
       observer.disconnect();
       try { chart.remove(); } catch (_) {}
       chartInstance.current = null;
+      mainSeriesRef.current   = null;
+      volumeSeriesRef.current = null;
     };
   }, [ticker, chartType, historyData, interval]);
+
+  // Hook 2: Listen to live WebSocket tick updates and append/update the chart series live
+  useEffect(() => {
+    if (!wsLastPriceUpdate || wsLastPriceUpdate.ticker !== ticker) return;
+    if (!mainSeriesRef.current || !volumeSeriesRef.current) return;
+
+    const tick = wsLastPriceUpdate;
+    const price = tick.price;
+    const volume = tick.volume || 0;
+    const time = Math.floor(new Date(tick.timestamp).getTime() / 1000);
+
+    // Calculate bucket time based on selected interval
+    let bucketSize = 3600; // 1h default
+    if (interval === '1m') bucketSize = 60;
+    else if (interval === '5m') bucketSize = 300;
+    else if (interval === '1d') bucketSize = 86400;
+
+    const bucketTime = Math.floor(time / bucketSize) * bucketSize;
+
+    setHistoryData(prev => {
+      if (prev.length === 0) return prev;
+      const copy = [...prev];
+      const lastIndex = copy.length - 1;
+      const lastBar = copy[lastIndex];
+
+      let updatedBar;
+      if (lastBar.time === bucketTime) {
+        // Update the last candle
+        updatedBar = {
+          ...lastBar,
+          high: Math.max(lastBar.high, price),
+          low: Math.min(lastBar.low, price),
+          close: price,
+          volume: lastBar.volume + volume, // accumulate volume
+        };
+        copy[lastIndex] = updatedBar;
+      } else if (bucketTime > lastBar.time) {
+        // Start a new candle
+        updatedBar = {
+          time: bucketTime,
+          open: price,
+          high: price,
+          low: price,
+          close: price,
+          volume: volume,
+        };
+        copy.push(updatedBar);
+      } else {
+        // Out of order, ignore
+        return prev;
+      }
+
+      // Update lightweight-charts series directly
+      if (chartType === 'candle') {
+        mainSeriesRef.current.update(updatedBar);
+      } else {
+        mainSeriesRef.current.update({ time: updatedBar.time, value: updatedBar.close });
+      }
+
+      volumeSeriesRef.current.update({
+        time: updatedBar.time,
+        value: updatedBar.volume,
+        color: updatedBar.close >= updatedBar.open ? 'rgba(0, 229, 160, 0.35)' : 'rgba(255, 77, 109, 0.35)',
+      });
+
+      return copy;
+    });
+  }, [wsLastPriceUpdate, ticker, interval, chartType]);
 
   const sessionInfo = SESSION_CONFIG[session] ?? SESSION_CONFIG.closed;
 
@@ -342,6 +451,45 @@ const PriceChart = ({ ticker = 'AAPL', currentPrice }) => {
           background: '#0A1628',
           position: 'relative',
         }}>
+        
+        {/* Dynamic Hover Details Legend Overlay */}
+        {(() => {
+          const activeBar = hoveredBar || (historyData.length > 0 ? historyData[historyData.length - 1] : null);
+          if (!activeBar) return null;
+          return (
+            <div className="absolute top-4 left-4 z-10 flex flex-wrap gap-x-3 gap-y-1 bg-[#050B14]/85 p-2 rounded-lg border border-white/5 backdrop-blur-md text-[10px] font-mono text-[#8BAFC8] pointer-events-none select-none">
+              <div>
+                <span className="text-[#4A6080]">O: </span>
+                <span className="font-bold text-white">${activeBar.open != null ? activeBar.open.toFixed(2) : '—'}</span>
+              </div>
+              <div>
+                <span className="text-[#4A6080]">H: </span>
+                <span className="font-bold text-[#00E5A0]">${activeBar.high != null ? activeBar.high.toFixed(2) : '—'}</span>
+              </div>
+              <div>
+                <span className="text-[#4A6080]">L: </span>
+                <span className="font-bold text-[#FF4D6D]">${activeBar.low != null ? activeBar.low.toFixed(2) : '—'}</span>
+              </div>
+              <div>
+                <span className="text-[#4A6080]">C: </span>
+                <span className="font-bold text-white">${activeBar.close != null ? activeBar.close.toFixed(2) : '—'}</span>
+              </div>
+              {activeBar.volume != null && (
+                <div>
+                  <span className="text-[#4A6080]">V: </span>
+                  <span className="font-bold text-[#00D4FF]">
+                    {activeBar.volume >= 1_000_000
+                      ? `${(activeBar.volume / 1_000_000).toFixed(1)}M`
+                      : activeBar.volume >= 1_000
+                        ? `${(activeBar.volume / 1_000).toFixed(0)}K`
+                        : activeBar.volume.toString()}
+                  </span>
+                </div>
+              )}
+            </div>
+          );
+        })()}
+
         {historyData.length === 0 && !fetchLoading && (
           <div style={{ position: 'absolute', inset: 0, display: 'flex', alignItems: 'center', justifyContent: 'center', pointerEvents: 'none' }}>
             <span className="text-sm font-mono" style={{ color: '#4A6080' }}>
