@@ -158,6 +158,7 @@ const PriceChart = ({ ticker = 'AAPL', currentPrice }) => {
         textColor: '#4A6080',
         fontFamily: "'JetBrains Mono', monospace",
         fontSize: 11,
+        attributionLogo: false, // Hide TradingView branding logo
       },
       grid: {
         vertLines: { color: 'rgba(0,212,255,0.04)' },
