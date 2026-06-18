@@ -10,6 +10,9 @@ jobs:
   test:
     name: Run Unit Tests & Code Linting
     runs-on: ubuntu-latest
+    defaults:
+      run:
+        working-directory: ./backend
     steps:
       - name: Checkout Source Code
         uses: actions/checkout@v4

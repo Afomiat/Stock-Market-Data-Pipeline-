@@ -1,0 +1,368 @@
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+/* =========================================
+   GLOBAL RESET & BASE
+   ========================================= */
+*, *::before, *::after {
+  box-sizing: border-box;
+  margin: 0;
+  padding: 0;
+}
+
+:root {
+  --deep-navy: #050B14;
+  --dark-card: #0A1628;
+  --card-surface: #0F1E35;
+  --electric-cyan: #00D4FF;
+  --neon-teal: #00B8D9;
+  --emerald-gain: #00E5A0;
+  --crimson-loss: #FF4D6D;
+  --soft-gold: #FFD700;
+  --muted: #4A6080;
+  --text-primary: #E8F4FF;
+  --text-secondary: #8BAFC8;
+}
+
+html {
+  scroll-behavior: smooth;
+}
+
+body {
+  background-color: var(--deep-navy);
+  color: var(--text-primary);
+  font-family: 'Inter', system-ui, sans-serif;
+  -webkit-font-smoothing: antialiased;
+  -moz-osx-font-smoothing: grayscale;
+  overflow-x: hidden;
+}
+
+/* =========================================
+   SCROLLBAR STYLING
+   ========================================= */
+::-webkit-scrollbar {
+  width: 6px;
+  height: 6px;
+}
+::-webkit-scrollbar-track {
+  background: var(--deep-navy);
+}
+::-webkit-scrollbar-thumb {
+  background: rgba(0, 212, 255, 0.2);
+  border-radius: 3px;
+}
+::-webkit-scrollbar-thumb:hover {
+  background: rgba(0, 212, 255, 0.4);
+}
+
+/* =========================================
+   GLASS CARD
+   ========================================= */
+.glass-card {
+  background: linear-gradient(135deg, rgba(15, 30, 53, 0.9) 0%, rgba(10, 22, 40, 0.8) 100%);
+  border: 1px solid rgba(0, 212, 255, 0.1);
+  backdrop-filter: blur(20px);
+  -webkit-backdrop-filter: blur(20px);
+  border-radius: 16px;
+  transition: border-color 0.3s ease, box-shadow 0.3s ease, transform 0.2s ease;
+}
+
+.glass-card:hover {
+  border-color: rgba(0, 212, 255, 0.25);
+  box-shadow: 0 0 40px rgba(0, 212, 255, 0.06), 0 8px 32px rgba(0, 0, 0, 0.5);
+}
+
+/* =========================================
+   NEON BUTTON
+   ========================================= */
+.btn-primary {
+  background: linear-gradient(135deg, #00D4FF 0%, #0094B3 100%);
+  color: #050B14;
+  font-weight: 700;
+  padding: 0.625rem 1.5rem;
+  border-radius: 10px;
+  border: none;
+  cursor: pointer;
+  transition: all 0.2s ease;
+  font-family: 'Inter', sans-serif;
+  letter-spacing: 0.025em;
+  display: inline-flex;
+  align-items: center;
+}
+
+.btn-primary:hover {
+  box-shadow: 0 0 24px rgba(0, 212, 255, 0.5);
+  transform: translateY(-1px);
+}
+
+.btn-primary:active {
+  transform: translateY(0);
+}
+
+.btn-primary:disabled {
+  opacity: 0.6;
+  cursor: not-allowed;
+  transform: none;
+}
+
+.btn-ghost {
+  background: transparent;
+  color: #00D4FF;
+  font-weight: 600;
+  padding: 0.625rem 1.5rem;
+  border-radius: 10px;
+  border: 1px solid rgba(0, 212, 255, 0.3);
+  cursor: pointer;
+  transition: all 0.2s ease;
+  font-family: 'Inter', sans-serif;
+  display: inline-flex;
+  align-items: center;
+}
+
+.btn-ghost:hover {
+  background: rgba(0, 212, 255, 0.08);
+  border-color: #00D4FF;
+}
+
+.btn-ghost:disabled {
+  opacity: 0.5;
+  cursor: not-allowed;
+}
+
+.btn-danger {
+  background: transparent;
+  color: #FF4D6D;
+  font-weight: 600;
+  padding: 0.5rem 1rem;
+  border-radius: 8px;
+  border: 1px solid rgba(255, 77, 109, 0.3);
+  cursor: pointer;
+  transition: all 0.2s ease;
+  font-family: 'Inter', sans-serif;
+}
+
+.btn-danger:hover {
+  background: rgba(255, 77, 109, 0.1);
+  border-color: #FF4D6D;
+}
+
+/* =========================================
+   FORM INPUTS
+   ========================================= */
+.input-field {
+  background: rgba(10, 22, 40, 0.8);
+  border: 1px solid rgba(0, 212, 255, 0.15);
+  border-radius: 10px;
+  color: var(--text-primary);
+  padding: 0.75rem 1rem;
+  width: 100%;
+  font-family: 'Inter', sans-serif;
+  font-size: 0.875rem;
+  transition: border-color 0.2s ease, box-shadow 0.2s ease;
+  outline: none;
+}
+
+.input-field::placeholder {
+  color: var(--muted);
+}
+
+.input-field:focus {
+  border-color: #00D4FF;
+  box-shadow: 0 0 0 3px rgba(0, 212, 255, 0.1);
+}
+
+/* =========================================
+   TICKER TAPE
+   ========================================= */
+.ticker-tape-wrapper {
+  overflow: hidden;
+  white-space: nowrap;
+  position: relative;
+}
+
+.ticker-tape-wrapper::before,
+.ticker-tape-wrapper::after {
+  content: '';
+  position: absolute;
+  top: 0;
+  width: 120px;
+  height: 100%;
+  z-index: 2;
+  pointer-events: none;
+}
+
+.ticker-tape-wrapper::before {
+  left: 0;
+  background: linear-gradient(90deg, var(--deep-navy) 0%, transparent 100%);
+}
+
+.ticker-tape-wrapper::after {
+  right: 0;
+  background: linear-gradient(270deg, var(--deep-navy) 0%, transparent 100%);
+}
+
+.ticker-tape {
+  display: inline-flex;
+  animation: ticker-scroll 50s linear infinite;
+}
+
+@keyframes ticker-scroll {
+  0% { transform: translateX(0); }
+  100% { transform: translateX(-50%); }
+}
+
+/* =========================================
+   STATUS BADGES
+   ========================================= */
+.badge-gain {
+  background: rgba(0, 229, 160, 0.12);
+  color: #00E5A0;
+  border: 1px solid rgba(0, 229, 160, 0.25);
+  border-radius: 6px;
+  padding: 0.2rem 0.55rem;
+  font-size: 0.75rem;
+  font-weight: 600;
+  font-family: 'JetBrains Mono', monospace;
+}
+
+.badge-loss {
+  background: rgba(255, 77, 109, 0.12);
+  color: #FF4D6D;
+  border: 1px solid rgba(255, 77, 109, 0.25);
+  border-radius: 6px;
+  padding: 0.2rem 0.55rem;
+  font-size: 0.75rem;
+  font-weight: 600;
+  font-family: 'JetBrains Mono', monospace;
+}
+
+.badge-neutral {
+  background: rgba(74, 96, 128, 0.2);
+  color: #8BAFC8;
+  border: 1px solid rgba(74, 96, 128, 0.3);
+  border-radius: 6px;
+  padding: 0.2rem 0.55rem;
+  font-size: 0.75rem;
+  font-weight: 600;
+}
+
+/* =========================================
+   PRICE FLASH ANIMATIONS
+   ========================================= */
+@keyframes price-flash-green {
+  0% { color: #00E5A0; text-shadow: 0 0 16px rgba(0,229,160,0.9); }
+  100% { color: #E8F4FF; text-shadow: none; }
+}
+
+@keyframes price-flash-red {
+  0% { color: #FF4D6D; text-shadow: 0 0 16px rgba(255,77,109,0.9); }
+  100% { color: #E8F4FF; text-shadow: none; }
+}
+
+.price-up {
+  animation: price-flash-green 0.8s ease-out forwards;
+}
+
+.price-down {
+  animation: price-flash-red 0.8s ease-out forwards;
+}
+
+/* =========================================
+   GRID BACKGROUND PATTERN
+   ========================================= */
+.grid-bg {
+  background-image:
+    linear-gradient(rgba(0, 212, 255, 0.025) 1px, transparent 1px),
+    linear-gradient(90deg, rgba(0, 212, 255, 0.025) 1px, transparent 1px);
+  background-size: 40px 40px;
+}
+
+/* =========================================
+   GLOW EFFECTS
+   ========================================= */
+.glow-cyan {
+  box-shadow: 0 0 20px rgba(0, 212, 255, 0.3);
+}
+
+/* =========================================
+   CHART CONTAINER
+   ========================================= */
+.chart-container {
+  background: linear-gradient(180deg, rgba(0, 212, 255, 0.02) 0%, transparent 100%);
+  border-radius: 12px;
+  overflow: hidden;
+}
+
+/* =========================================
+   NAV LINK
+   ========================================= */
+.nav-link {
+  position: relative;
+  padding: 0.5rem 0;
+  color: #8BAFC8;
+  text-decoration: none;
+  font-size: 0.875rem;
+  font-weight: 500;
+  transition: color 0.2s ease;
+}
+
+.nav-link:hover {
+  color: #E8F4FF;
+}
+
+.nav-link.active {
+  color: #00D4FF;
+}
+
+.nav-link.active::after {
+  content: '';
+  position: absolute;
+  bottom: -2px;
+  left: 0;
+  right: 0;
+  height: 2px;
+  background: #00D4FF;
+  border-radius: 1px;
+  box-shadow: 0 0 8px rgba(0, 212, 255, 0.6);
+}
+
+/* =========================================
+   MODAL OVERLAY
+   ========================================= */
+.modal-overlay {
+  position: fixed;
+  inset: 0;
+  background: rgba(5, 11, 20, 0.85);
+  backdrop-filter: blur(8px);
+  z-index: 100;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 1rem;
+}
+
+/* =========================================
+   FADE IN ANIMATION
+   ========================================= */
+@keyframes fadeInUp {
+  0% { opacity: 0; transform: translateY(20px); }
+  100% { opacity: 1; transform: translateY(0); }
+}
+
+.fade-in-up {
+  animation: fadeInUp 0.5s ease-out forwards;
+}
+
+.fade-in-up-delay-1 { animation: fadeInUp 0.5s ease-out 0.1s forwards; opacity: 0; }
+.fade-in-up-delay-2 { animation: fadeInUp 0.5s ease-out 0.2s forwards; opacity: 0; }
+.fade-in-up-delay-3 { animation: fadeInUp 0.5s ease-out 0.3s forwards; opacity: 0; }
+.fade-in-up-delay-4 { animation: fadeInUp 0.5s ease-out 0.4s forwards; opacity: 0; }
+
+/* =========================================
+   SELECT OPTION STYLING
+   ========================================= */
+select option {
+  background: #0A1628;
+  color: #E8F4FF;
+}
