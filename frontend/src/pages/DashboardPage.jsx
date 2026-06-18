@@ -54,10 +54,6 @@ const DashboardPage = ({ wsLastPriceUpdate, wsConnected }) => {
   const [selectedTicker, setSelectedTicker] = useState('AAPL');
   const [loading, setLoading]         = useState(true);
   const [lastUpdate, setLastUpdate]   = useState(null);
-  
-  // Performance Benchmarking States
-  const [latency, setLatency]         = useState(null);
-  const [cacheStatus, setCacheStatus] = useState({});
 
   // One-shot initial REST load + fallback polling when WS is disconnected
   const fetchPrices = useCallback(async () => {
@@ -67,7 +63,6 @@ const DashboardPage = ({ wsLastPriceUpdate, wsConnected }) => {
     const chg     = {};
     const sessionOhlc = {};
     const currentHist = {};
-    const currentCache = {};
 
     await Promise.allSettled(
       TRACKED_TICKERS.map(async (ticker) => {
@@ -76,7 +71,6 @@ const DashboardPage = ({ wsLastPriceUpdate, wsConnected }) => {
           const res = await axios.get(`/api/stocks/${ticker}/price`);
           results[ticker] = res.data.price;
           vols[ticker]    = res.data.volume ?? null;
-          currentCache[ticker] = res.data.source || 'relational_database';
           if (res.data.change != null) {
             chg[ticker] = {
               change: res.data.change,
@@ -115,7 +109,6 @@ const DashboardPage = ({ wsLastPriceUpdate, wsConnected }) => {
       setChanges(c => ({ ...c, ...chg }));
       setOhlc(o    => ({ ...o, ...sessionOhlc }));
       setHistoricalData(h => ({ ...h, ...currentHist }));
-      setCacheStatus(cs => ({ ...cs, ...currentCache }));
       setLastUpdate(new Date());
     }
     setLoading(false);
@@ -125,23 +118,6 @@ const DashboardPage = ({ wsLastPriceUpdate, wsConnected }) => {
   useEffect(() => {
     fetchPrices();
   }, []); // eslint-disable-line react-hooks/exhaustive-deps
-
-  // Ping endpoint periodically to benchmark network read latency
-  useEffect(() => {
-    const runPing = async () => {
-      const start = performance.now();
-      try {
-        await axios.get('/api/ping');
-        const end = performance.now();
-        setLatency(Math.round(end - start));
-      } catch (_) {
-        setLatency(null);
-      }
-    };
-    runPing();
-    const intervalId = setInterval(runPing, 10_000);
-    return () => clearInterval(intervalId);
-  }, []);
 
   // Fallback polling every 30s when WebSocket is disconnected
   useEffect(() => {
@@ -312,28 +288,6 @@ const DashboardPage = ({ wsLastPriceUpdate, wsConnected }) => {
               wsLastPriceUpdate={wsLastPriceUpdate}
             />
           </ChartBoundary>
-        </div>
-
-        {/* Live System Telemetry Footer */}
-        <div className="glass-card p-6 fade-in-up fade-in-up-delay-4">
-          <div className="flex items-center gap-2 mb-4">
-            <Zap className="w-4 h-4 text-[#FFD700] animate-pulse" />
-            <h3 className="text-sm font-bold text-white tracking-wide">Live System Telemetry</h3>
-          </div>
-          <div className="grid grid-cols-2 sm:grid-cols-4 gap-4">
-            {[
-              { label: 'Read Latency', value: latency != null ? `${latency}ms` : 'calculating…', color: '#00E5A0' },
-              { label: 'Cache Tier',   value: cacheStatus[selectedTicker] === 'cache_memory' ? 'Warm (Redis 7)' : 'Cold (Postgres DB)', color: '#00D4FF' },
-              { label: 'Connection',   value: wsConnected ? 'WebSocket (Live)' : 'HTTP Polling', color: '#6B48FF' },
-              { label: 'Node Health',  value: 'Operational', color: '#FFD700' },
-            ].map(({ label, value, color }) => (
-              <div key={label} className="text-center py-3 rounded-xl"
-                style={{ background: 'rgba(5,11,20,0.5)', border: '1px solid rgba(0,212,255,0.03)' }}>
-                <div className="text-sm font-bold font-mono" style={{ color }}>{value}</div>
-                <div className="text-xs mt-0.5" style={{ color: '#4A6080' }}>{label}</div>
-              </div>
-            ))}
-          </div>
         </div>
       </div>
     </div>
