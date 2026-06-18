@@ -1,8 +1,54 @@
 import React, { useRef, useEffect, useState } from 'react';
 import { TrendingUp, TrendingDown, Minus } from 'lucide-react';
 
+const EXCHANGE_MAP = {
+  AAPL: 'NASDAQ',
+  NVDA: 'NASDAQ',
+  TSLA: 'NASDAQ',
+};
+
+// Lightweight inline SVG Sparkline generator
+const Sparkline = ({ data = [] }) => {
+  if (data.length < 2) {
+    return (
+      <div className="w-[80px] h-[25px] flex items-center justify-center opacity-30">
+        <span className="text-[10px] font-mono">no trend</span>
+      </div>
+    );
+  }
+  
+  const prices = data.map(d => d.close ?? d.value);
+  const min = Math.min(...prices);
+  const max = Math.max(...prices);
+  const range = max - min === 0 ? 1 : max - min;
+  
+  const width = 80;
+  const height = 25;
+  const points = prices.map((price, index) => {
+    const x = (index / (prices.length - 1)) * width;
+    const y = height - ((price - min) / range) * height; // invert Y
+    return `${x},${y}`;
+  }).join(' ');
+
+  const isUp = prices[prices.length - 1] >= prices[0];
+  const color = isUp ? '#00E5A0' : '#FF4D6D';
+
+  return (
+    <svg width={width} height={height} className="overflow-visible opacity-85 select-none pointer-events-none">
+      <polyline
+        fill="none"
+        stroke={color}
+        strokeWidth="1.5"
+        strokeLinecap="round"
+        strokeLinejoin="round"
+        points={points}
+      />
+    </svg>
+  );
+};
+
 // Accept all real props — no mock data
-const TickerCard = ({ ticker, price, volume, change = 0, changePercent = 0, open, high, low }) => {
+const TickerCard = ({ ticker, price, volume, change = 0, changePercent = 0, open, high, low, historyData = [] }) => {
   const prevPrice = useRef(price);
   const [flashClass, setFlashClass] = useState('');
   const [displayPrice, setDisplayPrice] = useState(price);
@@ -39,6 +85,8 @@ const TickerCard = ({ ticker, price, volume, change = 0, changePercent = 0, open
         : volume.toString()
     : '—';
 
+  const exchange = EXCHANGE_MAP[ticker] || 'NASDAQ';
+
   return (
     <div className="glass-card p-5 cursor-default select-none" style={{ minHeight: '160px' }}>
       {/* Header Row */}
@@ -47,17 +95,22 @@ const TickerCard = ({ ticker, price, volume, change = 0, changePercent = 0, open
           <div className="text-xs font-mono font-bold tracking-widest mb-0.5" style={{ color: '#00D4FF' }}>
             {ticker}
           </div>
-          <div className="text-xs" style={{ color: '#4A6080' }}>NASDAQ</div>
+          <div className="text-[10px] font-semibold font-mono tracking-wider" style={{ color: '#4A6080' }}>
+            {exchange}
+          </div>
         </div>
         <span className={isNeutral ? 'badge-neutral' : isPositive ? 'badge-gain' : 'badge-loss'}>
           {isPositive && !isNeutral ? '+' : ''}{fmt(changePercent)}%
         </span>
       </div>
 
-      {/* Price */}
-      <div className={`font-mono font-bold tracking-tight mb-2 ${flashClass}`}
-        style={{ fontSize: '1.6rem', lineHeight: 1.1, color: '#E8F4FF' }}>
-        ${formattedPrice}
+      {/* Price & Sparkline Row */}
+      <div className="flex items-center justify-between mb-2 gap-4">
+        <div className={`font-mono font-bold tracking-tight ${flashClass}`}
+          style={{ fontSize: '1.5rem', lineHeight: 1.1, color: '#E8F4FF' }}>
+          ${formattedPrice}
+        </div>
+        <Sparkline data={historyData} />
       </div>
 
       {/* OHLC mini row */}
