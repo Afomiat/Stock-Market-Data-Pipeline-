@@ -25,6 +25,22 @@ export const AuthProvider = ({ children }) => {
     setLoading(false);
   }, [token]);
 
+  // Intercept 401 errors globally to auto-logout expired/invalid token sessions
+  useEffect(() => {
+    const interceptor = axios.interceptors.response.use(
+      (response) => response,
+      (error) => {
+        if (error.response && error.response.status === 401) {
+          logout();
+        }
+        return Promise.reject(error);
+      }
+    );
+    return () => {
+      axios.interceptors.response.eject(interceptor);
+    };
+  }, []);
+
   const login = async (email, password) => {
     // Backend returns: { user: { token, user: { id, email, full_name, ... } } }
     const res = await axios.post('/api/auth/login', { email, password });

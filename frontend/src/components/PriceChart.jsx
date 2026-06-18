@@ -8,6 +8,7 @@ import {
   CandlestickSeries,
   HistogramSeries,
 } from 'lightweight-charts';
+import { Maximize2, Minimize2 } from 'lucide-react';
 
 const INTERVALS = [
   { label: '1m',  value: '1m',  yhInterval: '1m',  yhRange: '1d'  },
@@ -107,6 +108,11 @@ const PriceChart = ({ ticker = 'AAPL', currentPrice, wsLastPriceUpdate }) => {
   // Keep references to series for live WebSocket updating
   const mainSeriesRef   = useRef(null);
   const volumeSeriesRef = useRef(null);
+  const candlesRef      = useRef([]);
+
+  // Fullscreen and latest candle states
+  const [latestCandle, setLatestCandle] = useState(null);
+  const [isFullscreen, setIsFullscreen] = useState(false);
 
   // Candle close countdown state
   const [timeLeft, setTimeLeft]         = useState(0);
@@ -141,6 +147,8 @@ const PriceChart = ({ ticker = 'AAPL', currentPrice, wsLastPriceUpdate }) => {
   useEffect(() => {
     let cancelled = false;
     setHistoryData([]);
+    candlesRef.current = [];
+    setLatestCandle(null);
     setFetchError(false);
     setFetchLoading(true);
     setDataSource('');
@@ -164,7 +172,15 @@ const PriceChart = ({ ticker = 'AAPL', currentPrice, wsLastPriceUpdate }) => {
             .sort((a, b) => a.time - b.time)
             .filter((d, i, arr) => i === 0 || d.time !== arr[i - 1].time);
 
-          if (!cancelled) { setHistoryData(candles); setDataSource('local'); setFetchLoading(false); }
+          if (!cancelled) {
+            setHistoryData(candles);
+            candlesRef.current = candles;
+            if (candles.length > 0) {
+              setLatestCandle(candles[candles.length - 1]);
+            }
+            setDataSource('local');
+            setFetchLoading(false);
+          }
           return;
         }
       } catch (_) {}
@@ -174,6 +190,8 @@ const PriceChart = ({ ticker = 'AAPL', currentPrice, wsLastPriceUpdate }) => {
       if (!cancelled) {
         if (yhBars.length > 0) {
           setHistoryData(yhBars);
+          candlesRef.current = yhBars;
+          setLatestCandle(yhBars[yhBars.length - 1]);
           setDataSource('yahoo');
         } else {
           setFetchError(true);
@@ -226,45 +244,81 @@ const PriceChart = ({ ticker = 'AAPL', currentPrice, wsLastPriceUpdate }) => {
 
     chartInstance.current = chart;
 
-    if (historyData.length > 0) {
-      let mainSeries;
-      if (chartType === 'candle') {
-        mainSeries = chart.addSeries(CandlestickSeries, {
-          upColor: '#00E5A0', downColor: '#FF4D6D',
-          borderUpColor: '#00E5A0', borderDownColor: '#FF4D6D',
-          wickUpColor: '#00E5A0', wickDownColor: '#FF4D6D',
-        });
-        mainSeries.setData(historyData);
+    let mainSeries;
+    if (chartType === 'candle') {
+      mainSeries = chart.addSeries(CandlestickSeries, {
+        upColor: '#00E5A0', downColor: '#FF4D6D',
+        borderUpColor: '#00E5A0', borderDownColor: '#FF4D6D',
+        wickUpColor: '#00E5A0', wickDownColor: '#FF4D6D',
+      });
+    } else {
+      mainSeries = chart.addSeries(AreaSeries, {
+        lineColor: '#00D4FF',
+        topColor: 'rgba(0,212,255,0.22)',
+        bottomColor: 'rgba(0,212,255,0.01)',
+        lineWidth: 2,
+        priceLineVisible: true,
+        lastValueVisible: true,
+      });
+    }
+
+    // Add Volume Histogram Series overlay
+    const volumeSeries = chart.addSeries(HistogramSeries, {
+      color: '#26a69a',
+      priceFormat: {
+        type: 'volume',
+      },
+      priceScaleId: '', // overlay inside main pane
+    });
+
+    volumeSeries.priceScale().applyOptions({
+      scaleMargins: {
+        top: 0.8, // 80% empty from top, volume takes bottom 20%
+        bottom: 0,
+      },
+    });
+
+    // Keep tracking references for WS updates
+    mainSeriesRef.current   = mainSeries;
+    volumeSeriesRef.current = volumeSeries;
+
+    // Subscribe to crosshair movement to capture hover data metrics
+    chart.subscribeCrosshairMove(param => {
+      if (
+        param.point === undefined ||
+        !param.time ||
+        param.point.x < 0 ||
+        param.point.x > el.clientWidth ||
+        param.point.y < 0 ||
+        param.point.y > el.clientHeight
+      ) {
+        setHoveredBar(null);
       } else {
-        const areaData = historyData.map(d => ({ time: d.time, value: d.close }));
-        mainSeries = chart.addSeries(AreaSeries, {
-          lineColor: '#00D4FF',
-          topColor: 'rgba(0,212,255,0.22)',
-          bottomColor: 'rgba(0,212,255,0.01)',
-          lineWidth: 2,
-          priceLineVisible: true,
-          lastValueVisible: true,
-        });
+        const hoveredPrices = param.seriesData.get(mainSeries);
+        if (hoveredPrices) {
+          const hoveredVol = param.seriesData.get(volumeSeries);
+          setHoveredBar({
+            time: param.time,
+            open: hoveredPrices.open ?? null,
+            high: hoveredPrices.high ?? null,
+            low: hoveredPrices.low ?? null,
+            close: hoveredPrices.close ?? hoveredPrices.value ?? null,
+            volume: hoveredVol ? hoveredVol.value : null,
+          });
+        }
+      }
+    });
+
+    // Render initial data if already present
+    if (candlesRef.current.length > 0) {
+      if (chartType === 'candle') {
+        mainSeries.setData(candlesRef.current);
+      } else {
+        const areaData = candlesRef.current.map(d => ({ time: d.time, value: d.close }));
         mainSeries.setData(areaData);
       }
 
-      // Add Volume Histogram Series overlay
-      const volumeSeries = chart.addSeries(HistogramSeries, {
-        color: '#26a69a',
-        priceFormat: {
-          type: 'volume',
-        },
-        priceScaleId: '', // overlay inside main pane
-      });
-
-      volumeSeries.priceScale().applyOptions({
-        scaleMargins: {
-          top: 0.8, // 80% empty from top, volume takes bottom 20%
-          bottom: 0,
-        },
-      });
-
-      const volumeData = historyData.map(d => {
+      const volumeData = candlesRef.current.map(d => {
         const isUp = d.close >= d.open;
         return {
           time: d.time,
@@ -273,38 +327,6 @@ const PriceChart = ({ ticker = 'AAPL', currentPrice, wsLastPriceUpdate }) => {
         };
       });
       volumeSeries.setData(volumeData);
-
-      // Keep tracking references for WS updates
-      mainSeriesRef.current   = mainSeries;
-      volumeSeriesRef.current = volumeSeries;
-
-      // Subscribe to crosshair movement to capture hover data metrics
-      chart.subscribeCrosshairMove(param => {
-        if (
-          param.point === undefined ||
-          !param.time ||
-          param.point.x < 0 ||
-          param.point.x > el.clientWidth ||
-          param.point.y < 0 ||
-          param.point.y > el.clientHeight
-        ) {
-          setHoveredBar(null);
-        } else {
-          const hoveredPrices = param.seriesData.get(mainSeries);
-          if (hoveredPrices) {
-            const hoveredVol = param.seriesData.get(volumeSeries);
-            setHoveredBar({
-              time: param.time,
-              open: hoveredPrices.open ?? null,
-              high: hoveredPrices.high ?? null,
-              low: hoveredPrices.low ?? null,
-              close: hoveredPrices.close ?? hoveredPrices.value ?? null,
-              volume: hoveredVol ? hoveredVol.value : null,
-            });
-          }
-        }
-      });
-
       chart.timeScale().fitContent();
     }
 
@@ -320,7 +342,33 @@ const PriceChart = ({ ticker = 'AAPL', currentPrice, wsLastPriceUpdate }) => {
       mainSeriesRef.current   = null;
       volumeSeriesRef.current = null;
     };
-  }, [ticker, chartType, historyData, interval]);
+  }, [ticker, chartType, interval]);
+
+  // Set historical data updates to chart series without recreating the chart instance
+  useEffect(() => {
+    if (!mainSeriesRef.current || !volumeSeriesRef.current || historyData.length === 0) return;
+
+    if (chartType === 'candle') {
+      mainSeriesRef.current.setData(historyData);
+    } else {
+      const areaData = historyData.map(d => ({ time: d.time, value: d.close }));
+      mainSeriesRef.current.setData(areaData);
+    }
+
+    const volumeData = historyData.map(d => {
+      const isUp = d.close >= d.open;
+      return {
+        time: d.time,
+        value: d.volume || 0,
+        color: isUp ? 'rgba(0, 229, 160, 0.35)' : 'rgba(255, 77, 109, 0.35)',
+      };
+    });
+    volumeSeriesRef.current.setData(volumeData);
+
+    if (chartInstance.current) {
+      chartInstance.current.timeScale().fitContent();
+    }
+  }, [historyData, chartType]);
 
   // Hook 2: Listen to live WebSocket tick updates and append/update the chart series live
   useEffect(() => {
@@ -340,60 +388,59 @@ const PriceChart = ({ ticker = 'AAPL', currentPrice, wsLastPriceUpdate }) => {
 
     const bucketTime = Math.floor(time / bucketSize) * bucketSize;
 
-    setHistoryData(prev => {
-      if (prev.length === 0) return prev;
-      const copy = [...prev];
-      const lastIndex = copy.length - 1;
-      const lastBar = copy[lastIndex];
+    const currentCandles = candlesRef.current;
+    if (currentCandles.length === 0) return;
 
-      let updatedBar;
-      if (lastBar.time === bucketTime) {
-        // Update the last candle
-        updatedBar = {
-          ...lastBar,
-          high: Math.max(lastBar.high, price),
-          low: Math.min(lastBar.low, price),
-          close: price,
-          volume: lastBar.volume + volume, // accumulate volume
-        };
-        copy[lastIndex] = updatedBar;
-      } else if (bucketTime > lastBar.time) {
-        // Start a new candle
-        updatedBar = {
-          time: bucketTime,
-          open: price,
-          high: price,
-          low: price,
-          close: price,
-          volume: volume,
-        };
-        copy.push(updatedBar);
-      } else {
-        // Out of order, ignore
-        return prev;
-      }
+    const lastIndex = currentCandles.length - 1;
+    const lastBar = currentCandles[lastIndex];
 
-      // Update lightweight-charts series directly
-      if (chartType === 'candle') {
-        mainSeriesRef.current.update(updatedBar);
-      } else {
-        mainSeriesRef.current.update({ time: updatedBar.time, value: updatedBar.close });
-      }
+    let updatedBar;
+    if (lastBar.time === bucketTime) {
+      // Update the last candle
+      updatedBar = {
+        ...lastBar,
+        high: Math.max(lastBar.high, price),
+        low: Math.min(lastBar.low, price),
+        close: price,
+        volume: lastBar.volume + volume, // accumulate volume
+      };
+      currentCandles[lastIndex] = updatedBar;
+    } else if (bucketTime > lastBar.time) {
+      // Start a new candle
+      updatedBar = {
+        time: bucketTime,
+        open: price,
+        high: price,
+        low: price,
+        close: price,
+        volume: volume,
+      };
+      currentCandles.push(updatedBar);
+    } else {
+      // Out of order, ignore
+      return;
+    }
 
-      volumeSeriesRef.current.update({
-        time: updatedBar.time,
-        value: updatedBar.volume,
-        color: updatedBar.close >= updatedBar.open ? 'rgba(0, 229, 160, 0.35)' : 'rgba(255, 77, 109, 0.35)',
-      });
+    // Update lightweight-charts series directly
+    if (chartType === 'candle') {
+      mainSeriesRef.current.update(updatedBar);
+    } else {
+      mainSeriesRef.current.update({ time: updatedBar.time, value: updatedBar.close });
+    }
 
-      return copy;
+    volumeSeriesRef.current.update({
+      time: updatedBar.time,
+      value: updatedBar.volume,
+      color: updatedBar.close >= updatedBar.open ? 'rgba(0, 229, 160, 0.35)' : 'rgba(255, 77, 109, 0.35)',
     });
+
+    setLatestCandle(updatedBar);
   }, [wsLastPriceUpdate, ticker, interval, chartType]);
 
   const sessionInfo = SESSION_CONFIG[session] ?? SESSION_CONFIG.closed;
 
   return (
-    <div className="flex flex-col" style={{ flex: 1, minHeight: 0 }}>
+    <div className={`flex flex-col ${isFullscreen ? 'fixed inset-0 z-50 p-6 bg-[#050B14]' : 'h-full w-full'}`} style={isFullscreen ? {} : { flex: 1, minHeight: 0 }}>
       {/* Controls Row */}
       <div className="flex items-center justify-between mb-3 flex-shrink-0 flex-wrap gap-2">
         <div className="flex items-center gap-3 flex-wrap">
@@ -483,6 +530,24 @@ const PriceChart = ({ ticker = 'AAPL', currentPrice, wsLastPriceUpdate }) => {
               </button>
             ))}
           </div>
+
+          {/* Fullscreen toggle button */}
+          <button
+            onClick={() => setIsFullscreen(!isFullscreen)}
+            id="chart-fullscreen-btn"
+            className="p-1.5 rounded-lg text-xs font-mono font-semibold transition-all hover:bg-white/10"
+            style={{
+              background: 'rgba(5,11,20,0.8)',
+              color: isFullscreen ? '#00E5A0' : '#4A6080',
+              border: '1px solid rgba(0,212,255,0.15)',
+              display: 'flex',
+              alignItems: 'center',
+              justifyContent: 'center',
+            }}
+            title={isFullscreen ? "Exit Fullscreen" : "Fullscreen"}
+          >
+            {isFullscreen ? <Minimize2 className="w-4 h-4" /> : <Maximize2 className="w-4 h-4" />}
+          </button>
         </div>
       </div>
 
@@ -490,7 +555,7 @@ const PriceChart = ({ ticker = 'AAPL', currentPrice, wsLastPriceUpdate }) => {
       <div ref={chartRef}
         style={{
           flex: 1,
-          minHeight: '280px',
+          minHeight: isFullscreen ? 'calc(100vh - 100px)' : '280px',
           borderRadius: '12px',
           overflow: 'hidden',
           background: '#0A1628',
@@ -499,7 +564,7 @@ const PriceChart = ({ ticker = 'AAPL', currentPrice, wsLastPriceUpdate }) => {
         
         {/* Dynamic Hover Details Legend Overlay */}
         {(() => {
-          const activeBar = hoveredBar || (historyData.length > 0 ? historyData[historyData.length - 1] : null);
+          const activeBar = hoveredBar || latestCandle;
           if (!activeBar) return null;
           return (
             <div className="absolute top-4 left-4 z-10 flex flex-wrap gap-x-3 gap-y-1 bg-[#050B14]/85 p-2 rounded-lg border border-white/5 backdrop-blur-md text-[10px] font-mono text-[#8BAFC8] pointer-events-none select-none">
