@@ -225,20 +225,6 @@ const LoginPage = () => {
           </button>
         </form>
       </div>
-
-      {/* Footer stats */}
-      <div className="mt-8 flex items-center gap-6 fade-in-up fade-in-up-delay-2">
-        {[
-          { label: 'Assets Tracked', value: '3+' },
-          { label: 'Alerts Fired', value: '∞' },
-          { label: 'Latency', value: '<5ms' },
-        ].map(({ label, value }) => (
-          <div key={label} className="text-center">
-            <div className="text-sm font-bold font-mono" style={{ color: '#00D4FF' }}>{value}</div>
-            <div className="text-xs" style={{ color: '#4A6080' }}>{label}</div>
-          </div>
-        ))}
-      </div>
     </div>
   );
 };

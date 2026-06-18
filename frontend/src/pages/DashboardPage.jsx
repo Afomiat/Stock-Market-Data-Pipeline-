@@ -283,28 +283,6 @@ const DashboardPage = ({ wsLastPriceUpdate, wsConnected }) => {
             />
           </ChartBoundary>
         </div>
-
-        {/* Market Insight Footer */}
-        <div className="glass-card p-6 fade-in-up fade-in-up-delay-4">
-          <div className="flex items-center gap-2 mb-4">
-            <Zap className="w-4 h-4" style={{ color: '#FFD700' }} />
-            <h3 className="text-sm font-bold text-white">Engine Status</h3>
-          </div>
-          <div className="grid grid-cols-2 sm:grid-cols-4 gap-4">
-            {[
-              { label: 'Read Latency', value: '<5ms', color: '#00E5A0' },
-              { label: 'Cache Tier',   value: 'Redis 7', color: '#00D4FF' },
-              { label: 'Storage',      value: 'Neon PG', color: '#6B48FF' },
-              { label: 'Worker Pool',  value: 'Active', color: '#FFD700' },
-            ].map(({ label, value, color }) => (
-              <div key={label} className="text-center py-3 rounded-xl"
-                style={{ background: 'rgba(5,11,20,0.5)' }}>
-                <div className="text-sm font-bold font-mono" style={{ color }}>{value}</div>
-                <div className="text-xs mt-0.5" style={{ color: '#4A6080' }}>{label}</div>
-              </div>
-            ))}
-          </div>
-        </div>
       </div>
     </div>
   );
