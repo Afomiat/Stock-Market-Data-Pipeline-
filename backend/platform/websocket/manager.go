@@ -45,15 +45,16 @@ func (m *Manager) RemoveClient(userID string, connToRemove *websocket.Conn){
 }
 
 func (m *Manager) SendToUser(userID string, message []byte) error{
-	m.mu.RLock()
+	m.mu.Lock()
 	conn, exists := m.clients[userID]
-	m.mu.RUnlock()
-
 	if !exists{
+		m.mu.Unlock()
 		return fmt.Errorf("user %s currently offline, websocket connection unavailable", userID)
 	}
 
 	err := conn.WriteMessage(websocket.TextMessage, message)
+	m.mu.Unlock()
+
 	if err != nil{
 		m.RemoveClient(userID, conn)
 		return fmt.Errorf("failed to transmit websocket payload to user %s: %w", userID, err)
@@ -80,8 +81,8 @@ func (m *Manager) BroadcastPrice(res model.StockPriceResponse){
 		return 
 	}
 
-	m.mu.RLock()
-	defer m.mu.RUnlock()
+	m.mu.Lock()
+	defer m.mu.Unlock()
 
 	for userID, conn := range m.clients{
 		err := conn.WriteMessage(websocket.TextMessage, payload)

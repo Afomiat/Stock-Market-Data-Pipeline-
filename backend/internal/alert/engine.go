@@ -45,24 +45,33 @@ func CheckAndTriggerAlerts(db *sql.DB, wsManager *websocket.Manager, ticker stri
 		}
 
 		if isTriggered{
-			
+
+			// Atomically claim this alert. If another goroutine is already handling
+			// it (from a concurrent price tick), skip — DB deactivation is the real gate.
 			_, alreadyProcessing := processingAlerts.LoadOrStore(alert.ID, true)
 			if alreadyProcessing{
 				continue
 			}
 
+			// Deactivate first — this is the single source of truth.
+			// If this fails, release the in-memory lock so it can retry on the next tick.
 			err = storage.DeactivateAlert(db, alert.ID)
 			if err != nil{
 				log.Printf("Failed to auto-deactivate alert ID %s: %v", alert.ID, err)
-				processingAlerts.Delete(alert.ID)
+				processingAlerts.Delete(alert.ID) // allow retry on next tick
 				continue
 			}
-			log.Printf("ALERT TRIGGERED! User %s: %s has hit $%.2f(Target was %s $%.2f)", alert.UserID, alert.Ticker, currentPrice, alert.Condition, alert.TargetPrice)
-		
+
+			// Do NOT delete from processingAlerts on success — we intentionally keep
+			// the entry so any concurrent ticks that arrive before the DB read catches
+			// up are still blocked. The map is tiny and entries are per-alert-ID, so
+			// this is safe for the lifetime of the process.
+			log.Printf("ALERT TRIGGERED! User %s: %s has hit $%.2f (Target was %s $%.2f)", alert.UserID, alert.Ticker, currentPrice, alert.Condition, alert.TargetPrice)
+
 			notification := model.NotificationPayload{
 				Type:           "alert_triggered",
-				UserID:         alert.UserID, 
-				AlertID:        alert.ID,     
+				UserID:         alert.UserID,
+				AlertID:        alert.ID,
 				Ticker:         alert.Ticker,
 				PriceAtTrigger: currentPrice,
 				TriggeredAt:    time.Now(),
@@ -70,35 +79,32 @@ func CheckAndTriggerAlerts(db *sql.DB, wsManager *websocket.Manager, ticker stri
 
 			messageBytes, err := json.Marshal(notification)
 			if err != nil {
-				log.Printf(" Failed to marshal notification struct: %v", err)
-				processingAlerts.Delete(alert.ID)
-				
-				continue
+				log.Printf("Failed to marshal notification struct: %v", err)
+				continue // lock stays held — alert is deactivated, no retry needed
 			}
 
+			// Always persist to DB so the notification history is complete
+			if dbErr := storage.SaveNotification(db, notification); dbErr != nil {
+				log.Printf("Warning: Could not persist notification to DB for alert %s: %v", alert.ID, dbErr)
+			}
+
+			// Also push live over WebSocket if user is online
 			wsErr := wsManager.SendToUser(alert.UserID.String(), messageBytes)
 			if wsErr != nil {
-				log.Printf("User %s is offline. Falling back to PostgreSQL notification table...", alert.UserID)
-				
-				dbErr := storage.SaveNotification(db, notification)
-				if dbErr != nil {
-					log.Printf("Critical Error: Could not save offline notification: %v", dbErr)
-				}
+				log.Printf("User %s is offline — notification already saved to DB.", alert.UserID)
 			} else {
-				log.Printf("Live notification successfully streamed to user %s over WebSocket!", alert.UserID)
+				log.Printf("Live notification streamed to user %s over WebSocket!", alert.UserID)
 			}
 
-			processingAlerts.Delete(alert.ID)
-			
 			go func(emailAddress string, payload model.NotificationPayload){
 				err := email.SendAlertEmail(emailAddress, payload)
 				if err != nil{
-					log.Printf("Failed to send alert email to %s %v", emailAddress, err)
+					log.Printf("Failed to send alert email to %s: %v", emailAddress, err)
 				}else{
-					log.Printf("Alert email successfully queued and dispatched to %s", emailAddress)
+					log.Printf("Alert email dispatched to %s", emailAddress)
 				}
-			}(alert.UserEmail, notification)	
-		}	
+			}(alert.UserEmail, notification)
+		}
 	}
 }
 

@@ -1,6 +1,7 @@
 import React, { useState, useEffect, useCallback } from 'react';
+import { useNavigate } from 'react-router-dom';
 import axios from 'axios';
-import { Bell, TrendingUp, TrendingDown, RefreshCw, Inbox, CheckCircle2 } from 'lucide-react';
+import { Bell, TrendingUp, TrendingDown, RefreshCw, Inbox, CheckCircle2, Layers, HelpCircle } from 'lucide-react';
 
 const TYPE_STYLES = {
   alert_triggered: {
@@ -36,6 +37,7 @@ const formatDate = (dateStr) => {
 };
 
 const NotificationsPage = ({ wsLastAlert }) => {
+  const navigate = useNavigate();
   const [notifications, setNotifications] = useState([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState('');
@@ -76,8 +78,8 @@ const NotificationsPage = ({ wsLastAlert }) => {
   const totalPages = Math.ceil(notifications.length / PER_PAGE);
 
   return (
-    <div className="min-h-screen grid-bg pt-16" style={{ background: 'var(--deep-navy)' }}>
-      <div className="max-w-5xl mx-auto px-4 sm:px-6 lg:px-8 py-8">
+    <div className="min-h-screen grid-bg pt-16 flex" style={{ background: 'var(--deep-navy)' }}>
+      <div className="flex-1 max-w-5xl mx-auto px-4 sm:px-6 lg:px-8 py-8">
 
         {/* Header */}
         <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4 mb-8 fade-in-up">
