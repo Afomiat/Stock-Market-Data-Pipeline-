@@ -16,6 +16,11 @@ type bar struct {
 	Volume int64
 }
 
+type SeedConfig struct {
+	Interval string
+	Range    string
+}
+
 func fetchBars(ticker, interval, rangeVal string) ([]bar, error) {
 	url := fmt.Sprintf(
 		"https://query1.finance.yahoo.com/v8/finance/chart/%s?interval=%s&range=%s",
@@ -74,36 +79,50 @@ func fetchBars(ticker, interval, rangeVal string) ([]bar, error) {
 
 func SeedHistoricalData(db *sql.DB, tickers []string) {
 	log.Println("📦 [Seeder] Initializing tracking space verification...")
-	for _, ticker := range tickers {
-		var count int
-		cutoff := time.Now().UTC().Add(-2 * time.Hour)
-		
-		db.QueryRow(`SELECT COUNT(*) FROM stock_prices WHERE ticker=$1 AND timestamp>=$2`,
-			ticker, cutoff).Scan(&count)
-		if count > 0 {
-			log.Printf("📦 [Seeder] Ticker %s matches fresh sequence validation bounds, skipping.", ticker)
-			continue
-		}
+	
+	configs := []SeedConfig{
+		{Interval: "5m", Range: "5d"},   
+		{Interval: "1h", Range: "60d"},  
+		{Interval: "1d", Range: "1y"},   
+	}
 
-		bars, err := fetchBars(ticker, "1h", "7d")
-		if err != nil {
-			log.Printf("📦 [Seeder] %s remote extraction failure: %v", ticker, err)
-			continue
-		}
-		
-		inserted := 0
-		for _, b := range bars {
-			ts := time.Unix(b.Time, 0).UTC()
-			_, err := db.Exec(`
-				INSERT INTO stock_prices (ticker, price, volume, timestamp)
-				VALUES ($1, $2, $3, $4)
-				ON CONFLICT DO NOTHING
-			`, ticker, b.Close, b.Volume, ts)
-			if err == nil {
-				inserted++
+	for _, config := range configs {
+		for _, ticker := range tickers {
+			var count int
+			cutoff := time.Now().UTC().Add(-48 * time.Hour)
+			
+			db.QueryRow(`
+				SELECT COUNT(*) FROM stock_prices 
+				WHERE ticker=$1 AND timeframe=$2 AND timestamp>=$3
+			`, ticker, config.Interval, cutoff).Scan(&count)
+			
+			if count > 0 {
+				log.Printf("📦 [Seeder] %s (%s) matches fresh sequence validation, skipping.", ticker, config.Interval)
+				continue
 			}
+
+			bars, err := fetchBars(ticker, config.Interval, config.Range)
+			if err != nil {
+				log.Printf("📦 [Seeder] %s (%s) extraction failure: %v", ticker, config.Interval, err)
+				continue
+			}
+			
+			inserted := 0
+			for _, b := range bars {
+				ts := time.Unix(b.Time, 0).UTC()
+				
+				_, err := db.Exec(`
+					INSERT INTO stock_prices (ticker, price, volume, timestamp, timeframe)
+					VALUES ($1, $2, $3, $4, $5)
+					ON CONFLICT (ticker, timestamp, timeframe) DO NOTHING
+				`, ticker, b.Close, b.Volume, ts, config.Interval)
+				
+				if err == nil {
+					inserted++
+				}
+			}
+			log.Printf("📦 [Seeder] Populated %s (%s) tracking matrix with %d points.", ticker, config.Interval, inserted)
 		}
-		log.Printf("📦 [Seeder] Successfully populated %s database array with %d elements.", ticker, inserted)
 	}
 	log.Println("📦 [Seeder] Synchronization lifecycle finalized.")
 }
