@@ -12,8 +12,8 @@ axios.defaults.baseURL = rawApiUrl;
 // we must strip the "/api" prefix because the Go backend does not use it (e.g. Go backend routing is directly /auth/login)
 if (rawApiUrl) {
   axios.interceptors.request.use((config) => {
-    if (config.url && config.url.startsWith('/api')) {
-      config.url = config.url.replace(/^\/api/, '');
+    if (config.url && config.url.startsWith('/api/auth')) {
+      config.url = config.url.replace(/^\/api\/auth/, '/auth');
     }
     return config;
   });

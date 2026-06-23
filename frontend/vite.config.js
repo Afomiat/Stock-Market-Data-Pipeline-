@@ -19,11 +19,16 @@ export default defineConfig(({ mode }) => {
     server: {
       port: 5173,
       proxy: {
+        '/api/auth': {
+          target: backendUrl,
+          changeOrigin: true,
+          secure: true,
+          rewrite: (path) => path.replace(/^\/api\/auth/, '/auth'),
+        },
         '/api': {
           target: backendUrl,
           changeOrigin: true,
           secure: true,
-          rewrite: (path) => path.replace(/^\/api/, ''),
         },
         '/yahoo-finance': {
           target: 'https://query1.finance.yahoo.com',

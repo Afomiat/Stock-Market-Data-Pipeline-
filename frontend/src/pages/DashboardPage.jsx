@@ -181,14 +181,12 @@ const DashboardPage = ({
     }
   }, [wsLastAlert, fetchBackendData]);
 
-  // REST loader
+  // REST loader (optimised to fetch prices only and avoid heavy multi-ticker history requests on load)
   const fetchPrices = useCallback(async () => {
     setLoading(true);
     const results = {};
     const vols    = {};
     const chg     = {};
-    const sessionOhlc = {};
-    const currentHist = {};
 
     await Promise.allSettled(
       TRACKED_TICKERS.map(async (ticker) => {
@@ -202,26 +200,6 @@ const DashboardPage = ({
               changePercent: res.data.change_percent,
             };
           }
-
-          try {
-            const histRes = await axios.get(`/api/stocks/${ticker}/history?interval=1h`);
-            const candles = Array.isArray(histRes.data) ? histRes.data : [];
-            currentHist[ticker] = candles;
-            if (candles.length > 0) {
-              const todayStr = new Date().toDateString();
-              const todayCandles = candles.filter(c => new Date(c.timestamp).toDateString() === todayStr);
-
-              if (todayCandles.length > 0) {
-                const open = todayCandles[0].open;
-                const high = Math.max(...todayCandles.map(c => c.high));
-                const low  = Math.min(...todayCandles.map(c => c.low));
-                sessionOhlc[ticker] = { open, high, low };
-              } else {
-                const last = candles[candles.length - 1];
-                sessionOhlc[ticker] = { open: last.open, high: last.high, low: last.low };
-              }
-            }
-          } catch (_) {}
         } catch (_) {}
       })
     );
@@ -230,16 +208,48 @@ const DashboardPage = ({
       setPrices(p  => ({ ...p, ...results }));
       setVolumes(v => ({ ...v, ...vols }));
       setChanges(c => ({ ...c, ...chg }));
-      setOhlc(o    => ({ ...o, ...sessionOhlc }));
-      setHistoricalData(h => ({ ...h, ...currentHist }));
       setLastUpdate(new Date());
     }
     setLoading(false);
   }, []);
 
+  // Fetch daily session OHLC stats for the active selected ticker only
+  const fetchOhlcStats = useCallback(async (ticker) => {
+    try {
+      const res = await axios.get(`/api/stocks/${ticker}/history?interval=1h`);
+      const candles = Array.isArray(res.data) ? res.data : [];
+      if (candles.length > 0) {
+        const todayStr = new Date().toDateString();
+        const todayCandles = candles.filter(c => new Date(c.timestamp).toDateString() === todayStr);
+
+        let open, high, low;
+        if (todayCandles.length > 0) {
+          open = todayCandles[0].open;
+          high = Math.max(...todayCandles.map(c => c.high));
+          low  = Math.min(...todayCandles.map(c => c.low));
+        } else {
+          const last = candles[candles.length - 1];
+          open = last.open;
+          high = last.high;
+          low  = last.low;
+        }
+        setOhlc(prev => ({
+          ...prev,
+          [ticker]: { open, high, low }
+        }));
+      }
+    } catch (_) {}
+  }, []);
+
   useEffect(() => {
     fetchPrices();
-  }, []); // eslint-disable-line react-hooks/exhaustive-deps
+  }, [fetchPrices]);
+
+  useEffect(() => {
+    if (selectedTicker) {
+      fetchOhlcStats(selectedTicker);
+    }
+  }, [selectedTicker, fetchOhlcStats]);
 
   useEffect(() => {
     if (wsConnected) return;
