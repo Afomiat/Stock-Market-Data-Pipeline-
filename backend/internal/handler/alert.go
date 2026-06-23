@@ -7,69 +7,94 @@ import (
 	"stock-market-data-pipeline/internal/storage"
 
 	"github.com/gin-gonic/gin"
+	"github.com/google/uuid"
 )
 
-
-func CreateAlertHandler(db *sql.DB) gin.HandlerFunc{
-	return func(c *gin.Context){
-
+func CreateAlertHandler(db *sql.DB) gin.HandlerFunc {
+	return func(c *gin.Context) {
 		var req model.CreateAlertRequest
 
 		err := c.ShouldBindJSON(&req)
-		if err != nil{
-			c.JSON(http.StatusBadRequest, gin.H{"error":err.Error()})
+		if err != nil {
+			c.JSON(http.StatusBadRequest, gin.H{"error": err.Error()})
 			return 
 		}
 
-		userID := c.MustGet("user_id").(string)
-
-		alert, err := storage.CreateAlert(db, userID, req)
-
-		if err != nil{
-			c.JSON(http.StatusBadRequest, gin.H{"error": err.Error()})
+		userIDContext, exists := c.Get("user_id")
+		if !exists {
+			c.JSON(http.StatusUnauthorized, gin.H{"error": "Identity context missing"})
+			return
+		}
+		userUUID, ok := userIDContext.(uuid.UUID)
+		if !ok {
+			c.JSON(http.StatusInternalServerError, gin.H{"error": "Invalid identification type mapping"})
 			return
 		}
 
-		c.JSON(http.StatusCreated, gin.H{"alert":alert})
+		alert, err := storage.CreateAlert(db, userUUID, req)
+		if err != nil {
+			c.JSON(http.StatusInternalServerError, gin.H{"error": err.Error()})
+			return
+		}
 
+		c.JSON(http.StatusCreated, gin.H{"alert": alert})
 	}
 }
 
-func GetAlertsHandler(db *sql.DB) gin.HandlerFunc{
-	return func(c *gin.Context){
-
-		userID := c.MustGet("user_id").(string)
-
-		alerts, err := storage.GetAlertByUserID(db, userID)
-
-		if err != nil{
-			c.JSON(http.StatusBadRequest, gin.H{"error": err.Error()})
+func GetAlertsHandler(db *sql.DB) gin.HandlerFunc {
+	return func(c *gin.Context) {
+		userIDContext, exists := c.Get("user_id")
+		if !exists {
+			c.JSON(http.StatusUnauthorized, gin.H{"error": "Identity context missing"})
+			return
+		}
+		userUUID, ok := userIDContext.(uuid.UUID)
+		if !ok {
+			c.JSON(http.StatusInternalServerError, gin.H{"error": "Invalid identification type mapping"})
 			return
 		}
 
-		if alerts == nil{
+		alerts, err := storage.GetAlertByUserID(db, userUUID)
+		if err != nil {
+			c.JSON(http.StatusInternalServerError, gin.H{"error": err.Error()})
+			return
+		}
+
+		if alerts == nil {
 			alerts = []model.Alert{}
 		}
-		c.JSON(http.StatusOK, gin.H{"alerts":alerts})
-
+		c.JSON(http.StatusOK, gin.H{"alerts": alerts})
 	}
 }
 
-func UpdateAlertHandler(db *sql.DB) gin.HandlerFunc{
-	return func(c *gin.Context){
+func UpdateAlertHandler(db *sql.DB) gin.HandlerFunc {
+	return func(c *gin.Context) {
 		var req model.UpdateAlertRequest
-		userID := c.MustGet("user_id").(string)
-		alertID := c.Param("id")
+		userIDContext, exists := c.Get("user_id")
+		if !exists {
+			c.JSON(http.StatusUnauthorized, gin.H{"error": "Identity context missing"})
+			return
+		}
+		userUUID, ok := userIDContext.(uuid.UUID)
+		if !ok {
+			c.JSON(http.StatusInternalServerError, gin.H{"error": "Invalid identification type mapping"})
+			return
+		}
 
-		err := c.ShouldBindJSON(&req)
+		alertIDStr := c.Param("id")
+		alertUUID, err := uuid.Parse(alertIDStr) 
+		if err != nil {
+			c.JSON(http.StatusBadRequest, gin.H{"error": "Invalid alert ID format: must be a valid UUID"})
+			return
+		}
 
-		if err != nil{
-			c.JSON(http.StatusBadRequest, gin.H{"error":err.Error()})
+		err = c.ShouldBindJSON(&req)
+		if err != nil {
+			c.JSON(http.StatusBadRequest, gin.H{"error": err.Error()})
 			return 
 		}
 
-		alert , err := storage.UpdateAlert(db, alertID, userID, req)
-
+		alert, err := storage.UpdateAlert(db, alertUUID, userUUID, req)
 		if err != nil {
 			if err.Error() == "alert not found or unauthorized to modify" {
 				c.JSON(http.StatusNotFound, gin.H{"error": err.Error()})
@@ -77,20 +102,32 @@ func UpdateAlertHandler(db *sql.DB) gin.HandlerFunc{
 			}
 			c.JSON(http.StatusInternalServerError, gin.H{"error": err.Error()})
 			return
-
+		}
+		c.JSON(http.StatusOK, gin.H{"alert": alert})
 	}
-	c.JSON(http.StatusOK, gin.H{"alert": alert})
-}
 }
 
-func DeleteAlertHandler(db *sql.DB) gin.HandlerFunc{
+func DeleteAlertHandler(db *sql.DB) gin.HandlerFunc {
 	return func(c *gin.Context) {
+		userIDContext, exists := c.Get("user_id")
+		if !exists {
+			c.JSON(http.StatusUnauthorized, gin.H{"error": "Identity context missing"})
+			return
+		}
+		userUUID, ok := userIDContext.(uuid.UUID)
+		if !ok {
+			c.JSON(http.StatusInternalServerError, gin.H{"error": "Invalid identification type mapping"})
+			return
+		}
 
-		alertID := c.Param("id")
-		userID := c.MustGet("user_id").(string)
+		alertIDStr := c.Param("id")
+		alertUUID, err := uuid.Parse(alertIDStr) 
+		if err != nil {
+			c.JSON(http.StatusBadRequest, gin.H{"error": "Invalid alert ID format: must be a valid UUID"})
+			return
+		}
 
-		err := storage.DeleteAlert(db, alertID, userID)
-
+		err = storage.DeleteAlert(db, alertUUID, userUUID)
 		if err != nil {
 			if err.Error() == "alert not found or unauthorized to delete" {
 				c.JSON(http.StatusNotFound, gin.H{"error": err.Error()})
@@ -98,9 +135,7 @@ func DeleteAlertHandler(db *sql.DB) gin.HandlerFunc{
 			}
 			c.JSON(http.StatusInternalServerError, gin.H{"error": err.Error()})
 			return
-
-	}
-	c.JSON(http.StatusOK, gin.H{"messsage ": "alert successfully deleted"})
-
+		}
+		c.JSON(http.StatusOK, gin.H{"message": "alert successfully deleted"})
 	}
 }

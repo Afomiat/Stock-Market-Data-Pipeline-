@@ -92,6 +92,7 @@ func main(){
 	wsManager := websocket.NewManager()
 
 	streamProc := service.NewStreamProcessor(db, redisCache)
+	tradeService := service.NewTradeService(db, redisCache)
 
 	r := gin.Default()
 
@@ -108,18 +109,31 @@ func main(){
 		auth.POST("/login", handler.Login(db))
 	}
 
-	protected := r.Group("/")
+	protected := r.Group("/api")
 	protected.Use(middleware.AuthMiddleware())
 	{
 		protected.POST("/alerts", handler.CreateAlertHandler(db))
 		protected.GET("/alerts", handler.GetAlertsHandler(db))
 		protected.PUT("/alerts/:id", handler.UpdateAlertHandler(db))
 		protected.DELETE("/alerts/:id", handler.DeleteAlertHandler(db))
-		protected.GET("/ws", handler.HandleWebSocket(wsManager))
+
 		protected.GET("/notifications", handler.GetNotificationsHandler(db))
+
 		protected.GET("/stocks/:ticker/history", handler.GetStockHistoryHandler(db))
 		protected.GET("/stocks/:ticker/price", handler.GetStockPriceHandler(streamProc))
+
+		protected.GET("/account/balance", handler.HandleGetAccountBalanceOnly(tradeService))
+		
+		protected.GET("/trades/history", handler.HandleGetTradeHistory(tradeService))
+		protected.GET("/trades/active", handler.HandleGetActivePositions(tradeService)) 
+		protected.POST("/trades/open", handler.HandleOpenPosition(tradeService))      
+        protected.POST("/trades/close/:id", handler.HandleClosePosition(tradeService))
+
+
+		protected.GET("/account/summary", handler.HandleGetAccountSummary(tradeService))
 	}
+
+	r.GET("/ws", middleware.AuthMiddleware(), handler.HandleWebSocket(wsManager))
 
 	port := getEnv("PORT", "8080")
 	fmt.Printf("🚀 Server running on port %s...\n", port)
@@ -157,7 +171,7 @@ func main(){
 			}(ticker, price, volume)
 
 			go func(t string, p float64){
-				err := redisCache.SetPrice("live",t, p, 3600)
+				err := redisCache.SetPrice("live",t, p, 0)
 				if err != nil{
 					log.Printf("Redis cache write failed for %s: %v",t, err)
 				}

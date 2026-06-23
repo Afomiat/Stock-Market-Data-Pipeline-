@@ -9,7 +9,7 @@ import (
 	"github.com/google/uuid"
 )
 
-func CreateAlert(db *sql.DB, userID string, req model.CreateAlertRequest) (*model.Alert, error){
+func CreateAlert(db *sql.DB, userID uuid.UUID, req model.CreateAlertRequest) (*model.Alert, error){
 	query := `
 		INSERT INTO alerts (user_id, ticker, target_price, condition )
 		VALUES ($1, $2, $3, $4)
@@ -34,7 +34,7 @@ func CreateAlert(db *sql.DB, userID string, req model.CreateAlertRequest) (*mode
 	return &alert, nil
 }
 
-func GetAlertByUserID(db *sql.DB, userID string) ([]model.Alert, error){
+func GetAlertByUserID(db *sql.DB, userID uuid.UUID) ([]model.Alert, error){
 
 	query := `
 		SELECT id, user_id, ticker, target_price, condition, is_active, created_at
@@ -75,7 +75,7 @@ func GetAlertByUserID(db *sql.DB, userID string) ([]model.Alert, error){
 	return  alerts, nil
 }
 
-func UpdateAlert(db *sql.DB, alertID string, userID string, req model.UpdateAlertRequest) (*model.Alert, error) {
+func UpdateAlert(db *sql.DB, alertID uuid.UUID, userID uuid.UUID, req model.UpdateAlertRequest) (*model.Alert, error) {
 	query := `
 		UPDATE alerts
 		SET 
@@ -105,7 +105,7 @@ func UpdateAlert(db *sql.DB, alertID string, userID string, req model.UpdateAler
 	return &alert, nil
 }
 
-func DeleteAlert(db *sql.DB, alertID string, userID string) error {
+func DeleteAlert(db *sql.DB, alertID uuid.UUID, userID uuid.UUID) error {
 	query := `DELETE FROM alerts WHERE id = $1 AND user_id = $2`
 
 	result, err := db.Exec(query, alertID, userID)

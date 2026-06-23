@@ -113,7 +113,13 @@ func (r *RedisClient) GetPrice(prefix, ticker string) (float64, error) {
 func (r *RedisClient) SetPrice(prefix, ticker string, price float64, ttlInSeconds int) error {
 	key := r.formatKey(prefix, ticker)
 
-	_, err := r.do("SET", key, fmt.Sprintf("%f", price), "EX", ttlInSeconds)
+	var err error
+	if ttlInSeconds > 0 {
+		_, err = r.do("SET", key, fmt.Sprintf("%f", price), "EX", ttlInSeconds)
+	} else {
+		_, err = r.do("SET", key, fmt.Sprintf("%f", price))
+	}
+
 	if err != nil {
 		return fmt.Errorf("failed to cache price for %s: %w", ticker, err)
 	}

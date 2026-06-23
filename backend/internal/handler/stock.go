@@ -46,7 +46,7 @@ func GetStockPriceHandler(streamProc *service.StreamProcessor) gin.HandlerFunc {
 			price = dbPrice
 			source = "relational_database"
 
-			if cacheErr := redisClient.SetPrice("live", ticker, price, 3600); cacheErr != nil {
+			if cacheErr := redisClient.SetPrice("live", ticker, price, 0); cacheErr != nil {
 				log.Printf("Failed to re-warm cache for %s: %v", ticker, cacheErr)
 			}
 		}

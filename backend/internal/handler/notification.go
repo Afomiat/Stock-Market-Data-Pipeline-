@@ -7,6 +7,7 @@ import (
 	"stock-market-data-pipeline/internal/storage"
 
 	"github.com/gin-gonic/gin"
+	"github.com/google/uuid"
 )
 
 func GetNotificationsHandler(db *sql.DB) gin.HandlerFunc{
@@ -16,8 +17,17 @@ func GetNotificationsHandler(db *sql.DB) gin.HandlerFunc{
 			c.JSON(http.StatusUnauthorized, gin.H{"error":"Unauthorized user context"})
 			return 
 		}
-		userIDStr := userID.(string)
 
+		var userIDStr string
+		if uuidVal, ok := userID.(uuid.UUID); ok {
+			userIDStr = uuidVal.String()
+		} else if strVal, ok := userID.(string); ok {
+			userIDStr = strVal
+		} else {
+			c.JSON(http.StatusInternalServerError, gin.H{"error": "Invalid identification type mapping"})
+			return
+		}
+		
 		notifications, err := storage.GetNotificationsByUserID(db, userIDStr)
 
 		if err != nil{

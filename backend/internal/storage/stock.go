@@ -82,24 +82,27 @@ func GetStockHistory(db *sql.DB, ticker string, interval string, startTime time.
 	return candles, nil
 }
 
-func GetTodayOpenPrice(db *sql.DB, ticker string) (float64, error){
-    now := time.Now().UTC()
+func GetTodayOpenPrice(db *sql.DB, ticker string) (float64, error) {
+	now := time.Now().UTC()
+	todayMidnight := time.Date(now.Year(), now.Month(), now.Day(), 0, 0, 0, 0, time.UTC)
 
-    todayMidnight := time.Date(now.Year(), now.Month(), now.Day(), 0,0,0,0, time.UTC)
+	query := `
+		SELECT COALESCE(first(price, timestamp), 0)
+		FROM stock_prices
+		WHERE ticker = $1 AND timestamp >= $2;
+	`
 
-    query := `
-            SELECT first(price, timestamp)
-            FROM stock_prices
-            WHERE ticker = $1 AND timestamp >= $2;
-    `
+	var openPrice float64
+	err := db.QueryRow(query, ticker, todayMidnight).Scan(&openPrice)
+	if err != nil {
+		return 0, err
+	}
 
-    var openPrice float64
-    err := db.QueryRow(query, ticker, todayMidnight).Scan(&openPrice)
-    if err != nil{
-        return 0, err
-    }
+	if openPrice == 0 {
+		return 0, sql.ErrNoRows
+	}
 
-    return openPrice, nil
+	return openPrice, nil
 }
 
 func GetLatestVolume(db *sql.DB, ticker string) (int64, error) {
