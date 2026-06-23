@@ -1,0 +1,8 @@
+ALTER TABLE positions ALTER COLUMN id DROP IDENTITY IF EXISTS;
+ALTER TABLE positions ALTER COLUMN id DROP DEFAULT;
+
+ALTER TABLE positions 
+ALTER COLUMN id TYPE UUID USING gen_random_uuid();
+
+ALTER TABLE positions 
+ALTER COLUMN id SET DEFAULT gen_random_uuid();

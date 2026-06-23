@@ -1,0 +1,2 @@
+DROP TABLE IF EXISTS positions;
+ALTER TABLE users DROP COLUMN IF EXISTS balance;
