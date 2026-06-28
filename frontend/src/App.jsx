@@ -274,12 +274,12 @@ const AppShell = () => {
         onClearLog={handleClearLog}
       />
 
-      {/* ── Single real-time alert toast — top-right, below navbar ── */}
+      {/* ── Single real-time alert toast — bottom-left ── */}
       {toast && (
         <div
           key={toast.id}
-          className="fixed z-50 animate-slide-in-right"
-          style={{ top: '76px', right: '24px', maxWidth: '340px', width: '100%' }}
+          className="fixed z-50 animate-slide-in-left"
+          style={{ bottom: '24px', left: '24px', maxWidth: '340px', width: '100%' }}
         >
           <div
             className="glass-card p-4 flex items-start gap-3"

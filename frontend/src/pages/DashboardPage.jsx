@@ -384,11 +384,13 @@ const DashboardPage = ({
       if (res.data?.new_balance != null) {
         setDemoBalance(parseFloat(res.data.new_balance));
       }
-      await fetchActivePositions();
 
       const toastId = Date.now();
       setToastNotifications(prev => [...prev, { id: toastId, title: `Position Opened: ${tradeType} ${volumeLots} Lots of ${selectedTicker} at $${entryPrice.toFixed(2)}`, type: 'success' }]);
       setTimeout(() => setToastNotifications(prev => prev.filter(t => t.id !== toastId)), 4000);
+
+      // Refresh positions in background asynchronously
+      fetchActivePositions();
     } catch (err) {
       // Backend fallback execution (LocalStorage)
       const newPos = {
@@ -427,12 +429,14 @@ const DashboardPage = ({
       if (res.data?.new_balance != null) {
         setDemoBalance(parseFloat(res.data.new_balance));
       }
-      await fetchActivePositions();
-      await fetchTradeHistory();
 
       const toastId = Date.now();
       setToastNotifications(prev => [...prev, { id: toastId, title: `Closed Position: ${pos.ticker} ${pos.trade_type} returned $${res.data?.realized_pnl?.toFixed(2) || '0.00'}`, type: 'info' }]);
       setTimeout(() => setToastNotifications(prev => prev.filter(t => t.id !== toastId)), 4000);
+
+      // Refresh in background asynchronously
+      fetchActivePositions();
+      fetchTradeHistory();
     } catch (err) {
       // Backend fallback closure (LocalStorage)
       const curPrice = prices[pos.ticker];
