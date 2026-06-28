@@ -79,7 +79,7 @@ function playAlertPing() {
 // ---- App Shell (authenticated layout) ----
 const AppShell = () => {
   const { token, user } = useAuth();
-  const { connected, lastPriceUpdate, lastAlert } = useWebSocket(token);
+  const { connected, connecting, lastPriceUpdate, lastAlert } = useWebSocket(token);
   const [unreadCount, setUnreadCount] = useState(0);
   const [toast, setToast] = useState(null);
   const toastTimer = useRef(null);
@@ -229,7 +229,8 @@ const AppShell = () => {
   return (
     <>
       <Navbar 
-        connected={connected} 
+        connected={connected}
+        connecting={connecting}
         alertCount={unreadCount} 
         onAlertsClick={() => setShowAlertsModal(true)}
         onNotificationsClick={() => {

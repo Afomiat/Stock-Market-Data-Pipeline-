@@ -3,6 +3,7 @@ import { useEffect, useRef, useState, useCallback } from 'react';
 export const useWebSocket = (token) => {
   const ws = useRef(null);
   const [connected, setConnected] = useState(false);
+  const [connecting, setConnecting] = useState(false);
   const [lastPriceUpdate, setLastPriceUpdate] = useState(null);
   const [lastAlert, setLastAlert] = useState(null);
   const reconnectTimeout = useRef(null);
@@ -22,10 +23,14 @@ export const useWebSocket = (token) => {
     const url = `${wsBaseUrl}?token=${token}`;
 
     try {
+      setConnecting(true);
       ws.current = new WebSocket(url);
 
       ws.current.onopen = () => {
-        if (mounted.current) setConnected(true);
+        if (mounted.current) {
+          setConnected(true);
+          setConnecting(false);
+        }
       };
 
       ws.current.onmessage = (event) => {
@@ -43,15 +48,19 @@ export const useWebSocket = (token) => {
       ws.current.onclose = () => {
         if (mounted.current) {
           setConnected(false);
-          // Reconnect after 3 seconds
-          reconnectTimeout.current = setTimeout(connect, 3000);
+          setConnecting(false);
+          // Reconnect after 1.5 seconds
+          reconnectTimeout.current = setTimeout(connect, 1500);
         }
       };
 
       ws.current.onerror = () => {
+        if (mounted.current) setConnecting(false);
         ws.current?.close();
       };
-    } catch (_) {}
+    } catch (_) {
+      setConnecting(false);
+    }
   }, [token]);
 
   useEffect(() => {
@@ -64,5 +73,5 @@ export const useWebSocket = (token) => {
     };
   }, [connect]);
 
-  return { connected, lastPriceUpdate, lastAlert };
+  return { connected, connecting, lastPriceUpdate, lastAlert };
 };

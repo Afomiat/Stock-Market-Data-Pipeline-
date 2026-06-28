@@ -5,7 +5,7 @@ import {
 } from 'lucide-react';
 import { useAuth } from '../context/AuthContext';
 
-const Navbar = ({ connected, alertCount, onAlertsClick, onNotificationsClick }) => {
+const Navbar = ({ connected, connecting, alertCount, onAlertsClick, onNotificationsClick }) => {
   const { user, logout } = useAuth();
   const navigate = useNavigate();
   const [mobileOpen, setMobileOpen] = useState(false);
@@ -44,12 +44,23 @@ const Navbar = ({ connected, alertCount, onAlertsClick, onNotificationsClick }) 
           <div className="hidden md:flex items-center gap-4">
             {/* WS Status */}
             <div className="flex items-center gap-2 mr-2">
-              <div className={`w-2 h-2 rounded-full ${connected ? 'bg-emerald-400' : 'bg-red-500'}`}
-                style={connected ? { boxShadow: '0 0 8px rgba(0,229,160,0.8)', animation: 'pulse 2s infinite' } : {}} />
-              <span className="text-xs font-mono"
-                style={{ color: connected ? '#00E5A0' : '#FF4D6D' }}>
-                {connected ? 'LIVE' : 'OFFLINE'}
-              </span>
+              {connected ? (
+                <>
+                  <div className="w-2 h-2 rounded-full bg-emerald-400"
+                    style={{ boxShadow: '0 0 8px rgba(0,229,160,0.8)', animation: 'pulse 2s infinite' }} />
+                  <span className="text-xs font-mono" style={{ color: '#00E5A0' }}>LIVE</span>
+                </>
+              ) : connecting ? (
+                <>
+                  <div className="w-2 h-2 rounded-full bg-amber-400 animate-pulse" />
+                  <span className="text-xs font-mono" style={{ color: '#F59E0B' }}>CONNECTING...</span>
+                </>
+              ) : (
+                <>
+                  <div className="w-2 h-2 rounded-full bg-red-500" />
+                  <span className="text-xs font-mono" style={{ color: '#FF4D6D' }}>OFFLINE</span>
+                </>
+              )}
             </div>
 
             {/* Alerts Clock Icon Button */}
