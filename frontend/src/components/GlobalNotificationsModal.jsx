@@ -20,19 +20,19 @@ const GlobalNotificationsModal = ({ isOpen, onClose, notifications, soundEnabled
         onClick={(e) => e.stopPropagation()}
         style={{
           background: 'rgba(10, 22, 40, 0.95)',
-          border: '1px solid rgba(255, 77, 109, 0.25)',
-          boxShadow: '0 0 30px rgba(255, 77, 109, 0.08), 0 20px 50px rgba(0, 0, 0, 0.8)',
+          border: '1px solid rgba(255, 184, 0, 0.25)',
+          boxShadow: '0 0 30px rgba(255, 184, 0, 0.08), 0 20px 50px rgba(0, 0, 0, 0.8)',
           maxHeight: '85vh'
         }}
       >
         {/* Header */}
         <div className="flex items-center justify-between p-4 border-b border-[#1E2D4A] bg-[#070F1C]">
           <div className="flex items-center gap-2.5">
-            <div className="w-8 h-8 rounded-lg flex items-center justify-center bg-red-500/10 border border-red-500/20">
-              <Bell className="w-4 h-4 text-[#FF4D6D]" />
+            <div className="w-8 h-8 rounded-lg flex items-center justify-center bg-yellow-500/10 border border-yellow-500/20">
+              <Bell className="w-4 h-4 text-[#FFB800]" />
             </div>
             <div>
-              <h2 className="text-sm font-black tracking-wider uppercase text-[#FF4D6D]">Triggered Signals Log</h2>
+              <h2 className="text-sm font-black tracking-wider uppercase text-[#FFB800]">Triggered Signals Log</h2>
               <p className="text-[10px] text-[#8BAFC8]">Live breach history activity log</p>
             </div>
           </div>
@@ -90,8 +90,8 @@ const GlobalNotificationsModal = ({ isOpen, onClose, notifications, soundEnabled
                   key={notif.id || idx} 
                   className="flex items-start gap-3 p-3 rounded-lg border border-[#1E2D4A] bg-[#070F1C]/20 hover:bg-[#070F1C]/60 transition-colors"
                 >
-                  <div className="w-7 h-7 rounded-lg flex items-center justify-center bg-red-500/10 border border-red-500/20 mt-0.5 flex-shrink-0">
-                    <Bell className="w-3.5 h-3.5 text-[#FF4D6D]" />
+                  <div className="w-7 h-7 rounded-lg flex items-center justify-center bg-yellow-500/10 border border-yellow-500/20 mt-0.5 flex-shrink-0">
+                    <Bell className="w-3.5 h-3.5 text-[#FFB800]" />
                   </div>
 
                   <div className="flex-1 min-w-0">

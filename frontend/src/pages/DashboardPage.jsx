@@ -383,38 +383,46 @@ const DashboardPage = ({
       take_profit: takeProfitEnabled ? parseFloat(takeProfitPrice) : null
     };
 
+    // 1. Instantly create and show optimistic position & update balance
+    const optId = 'opt_' + Date.now();
+    const optPos = {
+      id: optId,
+      user_id: user?.id || 'demo_user',
+      ticker: selectedTicker,
+      trade_type: tradeType,
+      volume: volumeLots,
+      entry_price: entryPrice,
+      stop_loss: stopLossEnabled ? parseFloat(stopLossPrice) : null,
+      take_profit: takeProfitEnabled ? parseFloat(takeProfitPrice) : null,
+      status: 'OPEN',
+      entry_time: new Date().toISOString(),
+      margin_held: marginRequired
+    };
+
+    setActivePositions(prev => [optPos, ...prev]);
+    setDemoBalance(prev => prev - marginRequired);
+
     try {
       const res = await axios.post('/api/trades/open', payload);
       if (res.data?.new_balance != null) {
         setDemoBalance(parseFloat(res.data.new_balance));
       }
 
-      // Refresh positions in background asynchronously
+      // Refresh positions in background asynchronously to replace opt_ ID with DB uuid
       fetchActivePositions();
     } catch (err) {
-      // Backend fallback execution (LocalStorage)
-      const newPos = {
-        id: 'local_' + Date.now(),
-        user_id: user?.id || 'demo_user',
-        ticker: selectedTicker,
-        trade_type: tradeType,
-        volume: volumeLots,
-        entry_price: entryPrice,
-        stop_loss: stopLossEnabled ? parseFloat(stopLossPrice) : null,
-        take_profit: takeProfitEnabled ? parseFloat(takeProfitPrice) : null,
-        status: 'OPEN',
-        entry_time: new Date().toISOString(),
-        margin_held: marginRequired
-      };
-
-      const updated = [newPos, ...activePositions];
-      setActivePositions(updated);
+      // Backend failed — convert the optimistic position into a persistent local position
+      const fallbackId = 'local_' + Date.now();
+      setActivePositions(prev => {
+        const updated = prev.map(p => p.id === optId ? { ...p, id: fallbackId } : p);
+        if (user?.id) {
+          localStorage.setItem(`synexxus_positions_${user.id}`, JSON.stringify(updated.filter(p => p.id.startsWith('local_'))));
+        }
+        return updated;
+      });
       if (user?.id) {
-        localStorage.setItem(`synexxus_positions_${user.id}`, JSON.stringify(updated));
+        localStorage.setItem(`synexxus_balance_${user.id}`, (demoBalance - marginRequired).toString());
       }
-
-      const nextBal = demoBalance - marginRequired;
-      setDemoBalance(nextBal);
     }
   };
 
@@ -434,7 +442,33 @@ const DashboardPage = ({
     setToastNotifications(prev => [...prev, { id: toastId, title: `Closed Position: ${pos.ticker} ${pos.trade_type} returned $${realizedPnL.toFixed(2)}`, type: 'info' }]);
     setTimeout(() => setToastNotifications(prev => prev.filter(t => t.id !== toastId)), 4000);
 
+    const marginHeld = pos.margin_held != null ? pos.margin_held : (pos.volume * 100.0 * pos.entry_price) / 100.0;
+    const nextBal = demoBalance + marginHeld + realizedPnL;
+
+    // 1. Instantly remove from active positions and update balance and closed history optimistically
+    setActivePositions(prev => prev.filter(p => p.id !== pos.id));
+    setDemoBalance(nextBal);
+    const closedOpt = {
+      ...pos,
+      status: 'CLOSED',
+      closed_at: new Date().toISOString(),
+      closed_price: closePrice,
+      realized_pnl: realizedPnL
+    };
+    setClosedHistory(prev => [closedOpt, ...prev]);
+
     try {
+      if (pos.id.startsWith('local_') || pos.id.startsWith('opt_')) {
+        // Direct local close
+        if (user?.id) {
+          const updatedActive = activePositions.filter(p => p.id !== pos.id);
+          localStorage.setItem(`synexxus_positions_${user.id}`, JSON.stringify(updatedActive));
+          const updatedHist = [closedOpt, ...closedHistory];
+          localStorage.setItem(`synexxus_history_${user.id}`, JSON.stringify(updatedHist));
+        }
+        return;
+      }
+
       const res = await axios.post(`/api/trades/close/${pos.id}`);
       if (res.data?.new_balance != null) {
         setDemoBalance(parseFloat(res.data.new_balance));
@@ -444,51 +478,12 @@ const DashboardPage = ({
       fetchActivePositions();
       fetchTradeHistory();
     } catch (err) {
-      // Backend fallback closure (LocalStorage)
-      const curPrice = prices[pos.ticker];
-      if (curPrice == null) {
-        alert("Live quote feed is currently offline. Cannot close order.");
-        return;
-      }
-
-      const { bid, ask } = getQuotes(pos.ticker);
-      const closePrice = pos.trade_type === 'BUY' ? bid : ask;
-      const sharesCount = pos.volume * 100.0;
-
-      let realizedPnL = 0;
-      if (pos.trade_type === 'BUY') {
-        realizedPnL = (closePrice - pos.entry_price) * sharesCount;
-      } else {
-        realizedPnL = (pos.entry_price - closePrice) * sharesCount;
-      }
-
-      const marginHeld = pos.margin_held != null ? pos.margin_held : (pos.volume * 100.0 * pos.entry_price) / 100.0;
-      const nextBal = demoBalance + marginHeld + realizedPnL;
-      setDemoBalance(nextBal);
-
-      const updated = activePositions.filter(p => p.id !== pos.id);
-      setActivePositions(updated);
+      // Backend close failed — fallback to local persistence
       if (user?.id) {
-        localStorage.setItem(`synexxus_positions_${user.id}`, JSON.stringify(updated));
+        localStorage.setItem(`synexxus_positions_${user.id}`, JSON.stringify(activePositions.filter(p => p.id !== pos.id)));
+        localStorage.setItem(`synexxus_history_${user.id}`, JSON.stringify([closedOpt, ...closedHistory]));
+        localStorage.setItem(`synexxus_balance_${user.id}`, nextBal.toString());
       }
-
-      const closed = {
-        ...pos,
-        status: 'CLOSED',
-        closed_at: new Date().toISOString(),
-        closed_price: closePrice,
-        realized_pnl: realizedPnL
-      };
-
-      const updatedHist = [closed, ...closedHistory];
-      setClosedHistory(updatedHist);
-      if (user?.id) {
-        localStorage.setItem(`synexxus_history_${user.id}`, JSON.stringify(updatedHist));
-      }
-
-      const toastId = Date.now();
-      setToastNotifications(prev => [...prev, { id: toastId, title: `Demo Position Closed: ${pos.ticker} returned $${realizedPnL.toFixed(2)} USD`, type: 'info' }]);
-      setTimeout(() => setToastNotifications(prev => prev.filter(t => t.id !== toastId)), 4000);
     }
   };
 
