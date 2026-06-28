@@ -452,7 +452,8 @@ const DashboardPage = ({
         realizedPnL = (pos.entry_price - closePrice) * sharesCount;
       }
 
-      const nextBal = demoBalance + pos.margin_held + realizedPnL;
+      const marginHeld = pos.margin_held != null ? pos.margin_held : (pos.volume * 100.0 * pos.entry_price) / 100.0;
+      const nextBal = demoBalance + marginHeld + realizedPnL;
       setDemoBalance(nextBal);
 
       const updated = activePositions.filter(p => p.id !== pos.id);
@@ -494,11 +495,12 @@ const DashboardPage = ({
         pnl = (pos.entry_price - closePrice) * sharesCount;
       }
     }
-    return { ...pos, close_price: closePrice, pnl };
+    const margin_held = pos.margin_held != null ? pos.margin_held : (pos.volume * 100.0 * pos.entry_price) / 100.0;
+    return { ...pos, close_price: closePrice, pnl, margin_held };
   });
 
   const totalFloatingPnL = openPositionsWithPnL.reduce((acc, pos) => acc + pos.pnl, 0);
-  const totalMarginHeld = activePositions.reduce((acc, pos) => acc + pos.margin_held, 0);
+  const totalMarginHeld = openPositionsWithPnL.reduce((acc, pos) => acc + pos.margin_held, 0);
   const equity = demoBalance + totalFloatingPnL;
   const freeMargin = equity - totalMarginHeld;
   const marginLevel = totalMarginHeld > 0 ? (equity / totalMarginHeld) * 100 : 0;
