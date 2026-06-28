@@ -371,6 +371,10 @@ const DashboardPage = ({
       return;
     }
 
+    const toastId = Date.now();
+    setToastNotifications(prev => [...prev, { id: toastId, title: `Position Opened: ${tradeType} ${volumeLots} Lots of ${selectedTicker} at $${entryPrice.toFixed(2)}`, type: 'success' }]);
+    setTimeout(() => setToastNotifications(prev => prev.filter(t => t.id !== toastId)), 4000);
+
     const payload = {
       ticker: selectedTicker,
       trade_type: tradeType,
@@ -384,10 +388,6 @@ const DashboardPage = ({
       if (res.data?.new_balance != null) {
         setDemoBalance(parseFloat(res.data.new_balance));
       }
-
-      const toastId = Date.now();
-      setToastNotifications(prev => [...prev, { id: toastId, title: `Position Opened: ${tradeType} ${volumeLots} Lots of ${selectedTicker} at $${entryPrice.toFixed(2)}`, type: 'success' }]);
-      setTimeout(() => setToastNotifications(prev => prev.filter(t => t.id !== toastId)), 4000);
 
       // Refresh positions in background asynchronously
       fetchActivePositions();
@@ -415,24 +415,30 @@ const DashboardPage = ({
 
       const nextBal = demoBalance - marginRequired;
       setDemoBalance(nextBal);
-
-      const toastId = Date.now();
-      setToastNotifications(prev => [...prev, { id: toastId, title: `Demo Position Opened: ${tradeType} ${volumeLots} Lots of ${selectedTicker} at $${entryPrice.toFixed(2)}`, type: 'success' }]);
-      setTimeout(() => setToastNotifications(prev => prev.filter(t => t.id !== toastId)), 4000);
     }
   };
 
   // Close Position logic
   const handleClosePosition = async (pos) => {
+    const toastId = Date.now();
+    const { bid, ask } = getQuotes(pos.ticker);
+    const closePrice = pos.trade_type === 'BUY' ? bid : ask;
+    const sharesCount = pos.volume * 100.0;
+    let realizedPnL = 0;
+    if (pos.trade_type === 'BUY') {
+      realizedPnL = (closePrice - pos.entry_price) * sharesCount;
+    } else {
+      realizedPnL = (pos.entry_price - closePrice) * sharesCount;
+    }
+
+    setToastNotifications(prev => [...prev, { id: toastId, title: `Closed Position: ${pos.ticker} ${pos.trade_type} returned $${realizedPnL.toFixed(2)}`, type: 'info' }]);
+    setTimeout(() => setToastNotifications(prev => prev.filter(t => t.id !== toastId)), 4000);
+
     try {
       const res = await axios.post(`/api/trades/close/${pos.id}`);
       if (res.data?.new_balance != null) {
         setDemoBalance(parseFloat(res.data.new_balance));
       }
-
-      const toastId = Date.now();
-      setToastNotifications(prev => [...prev, { id: toastId, title: `Closed Position: ${pos.ticker} ${pos.trade_type} returned $${res.data?.realized_pnl?.toFixed(2) || '0.00'}`, type: 'info' }]);
-      setTimeout(() => setToastNotifications(prev => prev.filter(t => t.id !== toastId)), 4000);
 
       // Refresh in background asynchronously
       fetchActivePositions();
