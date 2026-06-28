@@ -31,10 +31,11 @@ func (ts *TradeService) calculateLiveSpread(marketPrice float64) (bid float64, a
 
 func (ts *TradeService) calculatePayout(side string, quantity, entryPrice, exitPrice float64) float64 {
 	initialCost := quantity * entryPrice
+	sharesCount := quantity * 100.0
 	if side == "BUY" {
-		return initialCost + ((exitPrice - entryPrice) * quantity)
+		return initialCost + ((exitPrice - entryPrice) * sharesCount)
 	}
-	return initialCost + ((entryPrice - exitPrice) * quantity)
+	return initialCost + ((entryPrice - exitPrice) * sharesCount)
 }
 
 func (ts *TradeService) ExecuteOpenPosition(userID uuid.UUID, req model.TradeRequest) (*model.PositionResponse, error) {
@@ -118,10 +119,11 @@ func (ts *TradeService) ExecuteClosePosition(userID uuid.UUID, positionID uuid.U
 	}
 
 	var realizedPnL float64
+	sharesCount := pos.Quantity * 100.0
 	if pos.Side == "BUY" {
-		realizedPnL = (exitPrice - pos.EntryPrice) * pos.Quantity
+		realizedPnL = (exitPrice - pos.EntryPrice) * sharesCount
 	} else {
-		realizedPnL = (pos.EntryPrice - exitPrice) * pos.Quantity
+		realizedPnL = (pos.EntryPrice - exitPrice) * sharesCount
 	}
 
 	return newBalance, realizedPnL, nil

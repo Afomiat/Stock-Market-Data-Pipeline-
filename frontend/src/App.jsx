@@ -179,40 +179,49 @@ const AppShell = () => {
   }, [lastAlert]); // eslint-disable-line react-hooks/exhaustive-deps
 
   const handleCreateAlert = async (alertData) => {
+    const tempId = 'opt_' + Date.now();
+    const newAlert = {
+      id: tempId,
+      ticker: alertData.ticker,
+      direction: alertData.condition === 'above' ? 'over' : 'under',
+      price: parseFloat(alertData.target_price),
+      channels: ['in_app', 'email']
+    };
+
+    // Update frontend state instantly (optimistic)
+    setActiveAlerts(prev => [newAlert, ...prev]);
+
     try {
       await axios.post('/api/alerts', {
         ticker: alertData.ticker,
         target_price: alertData.target_price,
         condition: alertData.condition
       });
-      await fetchBackendData();
+      // Replace optimistic alert with real one or refresh
+      fetchBackendData();
     } catch (err) {
       // Local fallback
-      const newAlert = {
-        id: 'local_' + Date.now(),
-        ticker: alertData.ticker,
-        direction: alertData.condition === 'above' ? 'over' : 'under',
-        price: alertData.target_price,
-        channels: ['in_app']
-      };
-      const updated = [newAlert, ...activeAlerts];
-      setActiveAlerts(updated);
-      if (user?.id) {
-        localStorage.setItem(`synexxus_alerts_${user.id}`, JSON.stringify(updated));
-      }
+      setActiveAlerts(prev => {
+        const updated = prev.map(a => a.id === tempId ? { ...a, id: 'local_' + Date.now() } : a);
+        if (user?.id) {
+          localStorage.setItem(`synexxus_alerts_${user.id}`, JSON.stringify(updated));
+        }
+        return updated;
+      });
     }
   };
 
   const handleDeleteAlert = async (id) => {
+    // Update frontend state instantly (optimistic)
+    setActiveAlerts(prev => prev.filter(a => a.id !== id));
+
     try {
       await axios.delete(`/api/alerts/${id}`);
-      await fetchBackendData();
+      fetchBackendData();
     } catch (err) {
-      // Local fallback
-      const updated = activeAlerts.filter(a => a.id !== id);
-      setActiveAlerts(updated);
+      // Keep deleted or fallback to storage update
       if (user?.id) {
-        localStorage.setItem(`synexxus_alerts_${user.id}`, JSON.stringify(updated));
+        localStorage.setItem(`synexxus_alerts_${user.id}`, JSON.stringify(activeAlerts.filter(a => a.id !== id)));
       }
     }
   };

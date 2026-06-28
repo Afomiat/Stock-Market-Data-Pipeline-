@@ -690,7 +690,7 @@ select option {
 /* REAL-TIME NOTIFICATION Engine STYLING */
 .exness-toast-container {
   position: fixed;
-  bottom: 24px;
+  bottom: 180px;
   left: 24px;
   z-index: 1000;
   display: flex;
